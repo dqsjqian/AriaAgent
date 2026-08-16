@@ -1,0 +1,13 @@
+# Build
+build/
+
+# Qt/CMake clutter
+CMakeCache.txt
+CMakeFiles/
+*.user
+*.autosave
+
+# IDE
+.vscode/
+.idea/
+*.swp
