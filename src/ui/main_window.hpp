@@ -19,6 +19,10 @@ class MainWindow : public QMainWindow {
 public:
     explicit MainWindow(ChatViewModel* vm, QWidget* parent = nullptr);
 
+    // Re-read the theme from settings and restyle everything (called by the
+    // Settings dialog after a theme change, and on first show).
+    void apply_theme();
+
 private:
     void on_send();
     void on_stop();

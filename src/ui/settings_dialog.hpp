@@ -40,4 +40,7 @@ private:
     QComboBox*  theme_combo_;
     QComboBox*  enter_combo_;
     QCheckBox*  stream_check_;
+
+    // presets page
+    QComboBox*  preset_combo_;
 };

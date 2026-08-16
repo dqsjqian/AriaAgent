@@ -34,17 +34,49 @@
 
 namespace {
 
-// ── DeepSeek palette ────────────────────────────────────────────────────────
-constexpr const char* kBg        = "#0f1117";
-constexpr const char* kPanel     = "#1a1d27";
-constexpr const char* kPanel2    = "#21252f";
-constexpr const char* kBorder    = "#2a2f3a";
-constexpr const char* kBubbleUser  = "#3b82f6";
-constexpr const char* kBubbleAsst  = "#1f2330";
-constexpr const char* kBubbleTool  = "#1e2940";
-constexpr const char* kText      = "#e5e7eb";
-constexpr const char* kTextDim   = "#8b93a3";
-constexpr const char* kAccent    = "#3b82f6";
+// ── Theme ───────────────────────────────────────────────────────────────────
+// Two palettes (dark default / light). The active one is loaded from
+// QSettings("theme") so the Settings dialog can switch it at runtime.
+struct Theme {
+    const char* bg;        // window background
+    const char* panel;     // sidebar / panels
+    const char* panel2;    // raised surfaces (input, tags)
+    const char* border;    // borders / secondary text on tags
+    const char* bubble_user;
+    const char* bubble_asst;
+    const char* bubble_tool;
+    const char* text;      // primary text
+    const char* text_dim;  // secondary text
+    const char* accent;
+};
+
+constexpr Theme kThemeDark = {
+    "#0f1117", "#1a1d27", "#21252f", "#2a2f3a",
+    "#3b82f6", "#1f2330", "#1e2940",
+    "#e5e7eb", "#8b93a3", "#3b82f6",
+};
+
+constexpr Theme kThemeLight = {
+    "#f5f6f8", "#ffffff", "#eef0f4", "#d5dae3",
+    "#3b82f6", "#f0f2f6", "#e8edf7",
+    "#1f2430", "#6b7280", "#3b82f6",
+};
+
+Theme load_theme() {
+    QSettings s("AriaAgent", "AriaAgent");
+    const int t = s.value("theme", 2).toInt();   // 0=system, 1=light, 2=dark
+    if (t == 1) return kThemeLight;
+    if (t == 0) {
+        // Follow the OS: use the app palette's window lightness.
+        const QColor win = QApplication::palette().color(QPalette::Window);
+        return win.lightness() > 128 ? kThemeLight : kThemeDark;
+    }
+    return kThemeDark;
+}
+
+// Global active theme (constexpr palette never changes; this indirection
+// lets delegates + MainWindow read the current one).
+Theme g_theme = kThemeDark;
 
 enum : int {
     RoleAuthor  = Qt::UserRole + 1,
@@ -98,8 +130,8 @@ public:
         const QString tool   = idx.data(RoleToolName).toString();
 
         const QRect r = opt.rect.adjusted(8, 4, -8, -4);
-        QColor bubble = isTool ? QColor(kBubbleTool)
-                               : (isUser ? QColor(kBubbleUser) : QColor(kBubbleAsst));
+        QColor bubble = isTool ? QColor(g_theme.bubble_tool)
+                               : (isUser ? QColor(g_theme.bubble_user) : QColor(g_theme.bubble_asst));
         const int maxW = isTool ? 460 : 640;
         const int bw = std::min(r.width() - 24, maxW);
         int bx = isUser ? (r.right() - bw) : r.left();
@@ -111,7 +143,7 @@ public:
             headerH = 18;
             QFont f = opt.font; f.setPointSizeF(f.pointSizeF() - 1.5);
             p->setFont(f);
-            p->setPen(isTool ? QColor("#60a5fa") : QColor(kTextDim));
+            p->setPen(isTool ? QColor("#60a5fa") : QColor(g_theme.text_dim));
             const QString head = isTool ? ("🛠 " + tool) : "AriaAgent";
             p->drawText(bx + 4, by, bw, 16, Qt::AlignLeft | Qt::AlignVCenter, head);
         }
@@ -129,8 +161,8 @@ public:
         // Draw the document inside the bubble (transparent bg → bubble shows).
         p->translate(bx + 10, bubbleTop + 6);
         QAbstractTextDocumentLayout::PaintContext ctx;
-        ctx.palette.setColor(QPalette::Text, QColor(kText));
-        ctx.palette.setColor(QPalette::Link, QColor(kAccent));
+        ctx.palette.setColor(QPalette::Text, QColor(g_theme.text));
+        ctx.palette.setColor(QPalette::Link, QColor(g_theme.accent));
         doc->documentLayout()->draw(p, ctx);
 
         p->restore();
@@ -217,11 +249,9 @@ public:
 } // namespace
 
 // ── MainWindow ──────────────────────────────────────────────────────────────
-MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
-    : QMainWindow(parent), vm_(vm) {
-    setWindowTitle(QStringLiteral("AriaAgent"));
-    resize(1280, 820);
-    setMinimumSize(960, 640);
+void MainWindow::apply_theme() {
+    g_theme = load_theme();
+    const Theme& t = g_theme;
 
     setStyleSheet(QStringLiteral(
         "QMainWindow,QWidget { background:%1; color:%2; font-family:'Segoe UI','Microsoft YaHei UI','PingFang SC',sans-serif; font-size:14px; }"
@@ -242,11 +272,36 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         "QListWidget { background:transparent; border:none; }"
         "QListWidget::item { padding:10px 12px; border-radius:8px; }"
         "QListWidget::item:hover { background:%6; }"
-        "QListWidget::item:selected { background:%6; color:white; }"
+        "QListWidget::item:selected { background:%3; color:%4; font-weight:600; }"
         "QLabel#phase { color:%4; font-weight:600; font-size:13px; }"
         "QLabel#hint { color:%5; font-size:13px; }"
-        "QLabel#workspaceTag { color:%5; font-size:13px; padding:3px 8px; background:%3; border-radius:6px; }"
-    ).arg(kBg, kText, kPanel2, kAccent, kBorder, kPanel));
+        "QLabel#workspaceTag { color:%2; font-size:13px; padding:3px 8px; background:%3; border-radius:6px; }"
+    ).arg(t.bg, t.text, t.panel2, t.accent, t.border, t.panel));
+
+    if (auto* sb = findChild<QFrame*>(QStringLiteral("sidebar"))) {
+        sb->setStyleSheet(QStringLiteral("QFrame#sidebar { background:%1; border-right:1px solid %2; }")
+                          .arg(t.panel, t.border));
+    }
+    if (trajectory_list_) {
+        trajectory_list_->setStyleSheet(QStringLiteral(
+            "QListView { background:%1; border-left:1px solid %2; padding:10px; }")
+            .arg(t.panel, t.border));
+    }
+    if (todo_list_) {
+        todo_list_->setStyleSheet(QStringLiteral(
+            "QListWidget { background:%1; border-left:1px solid %2; padding:10px; }")
+            .arg(t.panel, t.border));
+    }
+    if (model_label_) {
+        model_label_->setStyleSheet(QStringLiteral("color:%1; font-size:14px;").arg(t.text_dim));
+    }
+}
+
+MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
+    : QMainWindow(parent), vm_(vm) {
+    setWindowTitle(QStringLiteral("AriaAgent"));
+    resize(1280, 820);
+    setMinimumSize(960, 640);
 
     // ── Sidebar ────────────────────────────────────────────────────────────
     auto* logo_box = new QHBoxLayout;
@@ -291,8 +346,6 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     auto* sidebar_w = new QFrame(this);
     sidebar_w->setObjectName(QStringLiteral("sidebar"));
     sidebar_w->setFixedWidth(260);
-    sidebar_w->setStyleSheet(QStringLiteral("QFrame#sidebar { background:%1; border-right:1px solid %2; }")
-                             .arg(kPanel, kBorder));
     sidebar_w->setLayout(sidebar);
 
     // ── Chat area: top bar + bubble list + input ──────────────────────────
@@ -300,7 +353,6 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     tag_ws->setObjectName(QStringLiteral("workspaceTag"));
 
     model_label_ = new QLabel(QStringLiteral("● AriaAgent · LLM Agent Tool Framework"), this);
-    model_label_->setStyleSheet(QStringLiteral("color:%1; font-size:14px;").arg(kTextDim));
 
     phase_label_ = new QLabel(this);
     phase_label_->setObjectName(QStringLiteral("phase"));
@@ -400,16 +452,11 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     trajectory_list_->setSelectionMode(QAbstractItemView::NoSelection);
     trajectory_list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     trajectory_list_->setFocusPolicy(Qt::NoFocus);
-    trajectory_list_->setStyleSheet(QStringLiteral(
-        "QListView { background:%1; border-left:1px solid %2; padding:10px; }")
-        .arg(kPanel, kBorder));
 
     todo_list_ = new QListWidget(this);
     todo_list_->setSelectionMode(QAbstractItemView::NoSelection);
     todo_list_->setStyleSheet(QStringLiteral(
-        "QListWidget { background:%1; border-left:1px solid %2; padding:10px; }"
-        "QListWidget::item { padding:10px 12px; border-radius:8px; }")
-        .arg(kPanel, kBorder));
+        "QListWidget::item { padding:10px 12px; border-radius:8px; }"));
 
     right_panel_ = new QStackedWidget(this);
     right_panel_->addWidget(trajectory_list_);   // page 0: trajectory
@@ -467,10 +514,17 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     connect(vm_, &ChatViewModel::sessionChanged, this, [this] {
         session_list_->clear();
         const auto sessions_now = vm_->sessions();
+        QListWidgetItem* current = nullptr;
         for (const auto& s : sessions_now) {
             auto* it = new QListWidgetItem(QString::fromStdString(s.title), session_list_);
             it->setData(Qt::UserRole, QString::fromStdString(s.id));
-            if (s.id == vm_->current_session_id()) session_list_->setCurrentItem(it);
+            if (s.id == vm_->current_session_id()) {
+                session_list_->setCurrentItem(it);
+                current = it;
+            }
+        }
+        if (current) {
+            session_list_->scrollToItem(current, QAbstractItemView::EnsureVisible);
         }
     });
 
@@ -497,6 +551,9 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     auto* chat_model = qobject_cast<QAbstractListModel*>(chat_list_->model());
     connect(chat_model, &QAbstractListModel::rowsInserted,
             this, &MainWindow::scroll_bottom);
+
+    // Everything is constructed — restyle now that all widgets exist.
+    apply_theme();
 }
 
 void MainWindow::on_send() {
