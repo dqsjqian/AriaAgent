@@ -1,5 +1,5 @@
 // AriaAgent — ChatViewModel implementation (framework-agnostic core).
-#include "viewmodel/chat_view_model.hpp"
+#include "chat/viewmodel/chat_view_model.hpp"
 
 #include "i18n/I18n.h"
 
@@ -24,108 +24,66 @@ void post_to_ui(F&& f) {
 
 } // namespace
 
-ChatViewModel::ChatViewModel(agent::ToolRegistry tools)
-    : registry_(std::move(tools)),
-      engine_(registry_, agent::AgentEngine::Config{}) {
+ChatViewModel::ChatViewModel(agent::ToolRegistry& registry,
+                             agent::SessionStore& sessions,
+                             agent::ToolTraceStore& trace)
+    : registry_(registry),
+      engine_(registry_, agent::AgentEngine::Config{}),
+      sessions_(sessions),
+      trace_(trace) {
     streaming_text = "";
     phase_text = "";
     busy = false;
 
-    // Start with the most recent session, or create a fresh one.
-    auto existing = store_.list();
-    if (!existing.empty()) {
-        switch_session(existing.front().id);
-    } else {
-        new_session();
-    }
+    // When the session store changes (create/switch/delete) the UI list must
+    // be rebuilt from the (new) current log.
+    session_sub_ = sessions_.session_changed.connect(
+        [this] { reload_messages(); });
+    reload_messages();
 }
 
 ChatViewModel::~ChatViewModel() {
     stop();
-    persist_current();
+    sessions_.persist_current();
 }
 
-// ── Session management ──────────────────────────────────────────────────────
-std::string ChatViewModel::current_title() const {
-    for (const auto& m : store_.list())
-        if (m.id == current_id_) return m.title;
-    return {};
-}
-
-void ChatViewModel::new_session() {
-    stop();
-    persist_current();
+// ── Reload from the current session log ─────────────────────────────────────
+void ChatViewModel::reload_messages() {
     messages.clear();
-    tool_trace.clear();
-    history_.clear();
-    current_id_ = store_.create();
-    phase_text = "";
-    streaming_text = "";
-    session_changed.emit();
-}
-
-void ChatViewModel::switch_session(const std::string& id) {
-    if (id == current_id_) return;
-    stop();
-    persist_current();
-
-    current_id_ = id;
-    messages.clear();
-    tool_trace.clear();
-    history_ = store_.load(current_id_);
-
-    // Rebuild the UI list from the persisted log.
-    for (const auto& m : history_) {
+    trace_.clear();
+    const auto& history = sessions_.current_history();
+    for (const auto& m : history) {
         if (m.role == agent::Role::User) {
-            messages.push_back(std::make_shared<UiMessage>(
-                UiMessage{agent::Role::User, "You", m.content, false, ""}));
+            push_user(m.content);
         } else if (m.role == agent::Role::Tool) {
             messages.push_back(std::make_shared<UiMessage>(
-                UiMessage{agent::Role::Tool, "Tool", m.tool_result, true, "tool"}));
+                UiMessage{agent::Role::Tool, "Tool",
+                          agent::i18n::str("msg_tool"), m.tool_result, true, "tool"}));
         } else if (m.role == agent::Role::Assistant) {
             if (m.tool_calls.empty()) {
-                messages.push_back(std::make_shared<UiMessage>(
-                    UiMessage{agent::Role::Assistant, "Agent", m.content, false, ""}));
+                push_assistant(m.content);
             } else {
                 for (const auto& tc : m.tool_calls) {
-                    tool_trace.push_back(std::make_shared<UiToolCall>(
+                    trace_.trace().push_back(std::make_shared<UiToolCall>(
                         UiToolCall{tc.name, tc.args, "", true}));
                     messages.push_back(std::make_shared<UiMessage>(
-                        UiMessage{agent::Role::Tool, agent::i18n::str("msg_tool_prefix") + tc.name,
+                        UiMessage{agent::Role::Tool, "Tool",
+                                  agent::i18n::str("msg_tool_prefix") + tc.name,
                                   tc.args, true, tc.name}));
                 }
-                if (!m.content.empty()) {
-                    messages.push_back(std::make_shared<UiMessage>(
-                        UiMessage{agent::Role::Assistant, "Agent", m.content, false, ""}));
-                }
+                if (!m.content.empty()) push_assistant(m.content);
             }
         }
     }
     phase_text = "";
     streaming_text = "";
-    session_changed.emit();
-}
-
-void ChatViewModel::delete_session(const std::string& id) {
-    if (id == current_id_) {
-        // Can't delete the active session while it's running.
-        if (running_) return;
-    }
-    store_.remove(id);
-    if (id == current_id_) {
-        auto remaining = store_.list();
-        if (!remaining.empty()) switch_session(remaining.front().id);
-        else new_session();
-    } else {
-        session_changed.emit();
-    }
 }
 
 // ── Send / stop ─────────────────────────────────────────────────────────────
 void ChatViewModel::send(const std::string& input) {
     if (input.empty() || running_) return;
 
-    // Settings dialog writes these env vars on save; pick up any updates.
+    // Settings module writes these env vars on save; pick up any updates.
     // When unset, fall back to the localized default so the model gets a
     // prompt in the user's language even before they open Settings.
     if (const char* p = std::getenv("ARIA_LLM_SYSTEM_PROMPT"); p && *p) {
@@ -139,12 +97,13 @@ void ChatViewModel::send(const std::string& input) {
     phase_text = agent::i18n::str("phase_thinking");
 
     // User message goes into the shared log (multi-turn context).
-    history_.push_back({agent::Role::User, input, {}, "", "", false});
-    messages.push_back(std::make_shared<UiMessage>(
-        UiMessage{agent::Role::User, "You", input, false, ""}));
+    auto& history = sessions_.current_history();
+    history.push_back({agent::Role::User, input, {}, "", "", false});
+    push_user(input);
 
     streaming_row_ = std::make_shared<UiMessage>(
-        UiMessage{agent::Role::Assistant, "Agent", "", false, ""});
+        UiMessage{agent::Role::Assistant, "Agent",
+                  agent::i18n::str("msg_agent"), "", false, ""});
     messages.push_back(streaming_row_);
     streaming_text = "";
 
@@ -165,8 +124,7 @@ void ChatViewModel::send(const std::string& input) {
             post_to_ui([this, rec] {
                 if (stop_) return;
                 phase_text = agent::i18n::str("phase_tooling") + " (" + rec.name + ")";
-                UiToolCall tc{rec.name, rec.args, rec.result, rec.succeeded};
-                push_tool(tc);
+                push_tool(rec);
             });
         };
         cb.on_phase = [this](agent::AgentPhase p) {
@@ -201,7 +159,7 @@ void ChatViewModel::send(const std::string& input) {
         };
 
         try {
-            engine_.run(history_, cb);   // appends assistant reply to history_
+            engine_.run(sessions_.current_history(), cb);  // appends reply
         } catch (const std::exception& ex) {
             post_to_ui([this, msg = std::string(ex.what())] {
                 finalize_error(msg);
@@ -238,7 +196,7 @@ void ChatViewModel::finalize_success() {
     busy = false;
     phase_text = "";
     streaming_text = "";
-    persist_current();
+    sessions_.persist_current();
     maybe_compact();
 }
 
@@ -252,24 +210,9 @@ void ChatViewModel::finalize_error(const std::string& err) {
     }
     running_ = false;
     busy = false;
-    phase_text = "";
+    phase_text = agent::i18n::str("phase_error");
     streaming_text = "";
-    persist_current();
-}
-
-void ChatViewModel::persist_current() {
-    if (current_id_.empty()) return;
-    store_.save(current_id_, history_, derive_title());
-}
-
-std::string ChatViewModel::derive_title() const {
-    for (const auto& m : history_)
-        if (m.role == agent::Role::User && !m.content.empty()) {
-            auto t = m.content;
-            if (t.size() > 24) t = t.substr(0, 24) + "…";
-            return t;
-        }
-    return {};
+    sessions_.persist_current();
 }
 
 void ChatViewModel::maybe_compact() {
@@ -278,14 +221,12 @@ void ChatViewModel::maybe_compact() {
     // tool-result pair, and never summarise the most recent window.
     constexpr size_t kThreshold = 32;     // messages before considering
     constexpr size_t kKeepTail = 8;       // recent messages always kept verbatim
-    if (history_.size() < kThreshold) return;
+    auto& history = sessions_.current_history();
+    if (history.size() < kThreshold) return;
 
-    // Find the cut index: walk back from the end, stop once we've collected
-    // kKeepTail messages and we're at a safe boundary (not a tool result
-    // whose call is in the compacted region).
-    size_t cut = history_.size() - kKeepTail;
+    size_t cut = history.size() - kKeepTail;
     while (cut > 1) {
-        const auto& m = history_[cut];
+        const auto& m = history[cut];
         if (m.role == agent::Role::Tool) { ++cut; break; }   // keep its call
         break;
     }
@@ -293,8 +234,8 @@ void ChatViewModel::maybe_compact() {
 
     // Build the prefix to summarise: [system] + [cut-1 messages].
     agent::MessageList prefix;
-    prefix.push_back(history_.front());                    // system prompt
-    for (size_t i = 1; i < cut; ++i) prefix.push_back(history_[i]);
+    prefix.push_back(history.front());                    // system prompt
+    for (size_t i = 1; i < cut; ++i) prefix.push_back(history[i]);
 
     const std::string old_phase = phase_text.get();
     phase_text = agent::i18n::str("phase_compacting");
@@ -311,57 +252,37 @@ void ChatViewModel::maybe_compact() {
             if (!ok || summary.empty()) return;
 
             // Replace history_[1..cut) with a single system-compaction note.
+            auto& history = sessions_.current_history();
             agent::MessageList compacted;
-            compacted.push_back(history_.front());
+            compacted.push_back(history.front());
             compacted.push_back({agent::Role::System,
                 agent::i18n::str("msg_compacted") + summary, {}, "", "", false});
-            for (size_t i = cut; i < history_.size(); ++i)
-                compacted.push_back(history_[i]);
-            history_ = std::move(compacted);
+            for (size_t i = cut; i < history.size(); ++i)
+                compacted.push_back(history[i]);
+            history = std::move(compacted);
 
-            // Rebuild UI list.
-            messages.clear();
-            tool_trace.clear();
-            for (const auto& m : history_) {
-                if (m.role == agent::Role::User) {
-                    messages.push_back(std::make_shared<UiMessage>(
-                        UiMessage{agent::Role::User, "You", m.content, false, ""}));
-                } else if (m.role == agent::Role::Tool) {
-                    messages.push_back(std::make_shared<UiMessage>(
-                        UiMessage{agent::Role::Tool, "Tool", m.tool_result, true, "tool"}));
-                } else if (m.role == agent::Role::Assistant) {
-                    if (m.tool_calls.empty()) {
-                        messages.push_back(std::make_shared<UiMessage>(
-                            UiMessage{agent::Role::Assistant, "Agent", m.content, false, ""}));
-                    } else {
-                        for (const auto& tc : m.tool_calls)
-                            messages.push_back(std::make_shared<UiMessage>(
-                                UiMessage{agent::Role::Tool, agent::i18n::str("msg_tool_prefix") + tc.name,
-                                          tc.args, true, tc.name}));
-                        if (!m.content.empty())
-                            messages.push_back(std::make_shared<UiMessage>(
-                                UiMessage{agent::Role::Assistant, "Agent", m.content, false, ""}));
-                    }
-                }
-            }
-            persist_current();
+            reload_messages();
+            sessions_.persist_current();
         });
     });
 }
 
 void ChatViewModel::push_user(const std::string& text) {
     messages.push_back(std::make_shared<UiMessage>(
-        UiMessage{agent::Role::User, "You", text, false, ""}));
+        UiMessage{agent::Role::User, "You", agent::i18n::str("msg_user"),
+                  text, false, ""}));
 }
 
 void ChatViewModel::push_assistant(const std::string& text) {
     messages.push_back(std::make_shared<UiMessage>(
-        UiMessage{agent::Role::Assistant, "Agent", text, false, ""}));
+        UiMessage{agent::Role::Assistant, "Agent", agent::i18n::str("msg_agent"),
+                  text, false, ""}));
 }
 
-void ChatViewModel::push_tool(const UiToolCall& tc) {
-    tool_trace.push_back(std::make_shared<UiToolCall>(tc));
+void ChatViewModel::push_tool(const agent::ToolCallRecord& rec) {
+    trace_.add(rec);
     messages.push_back(std::make_shared<UiMessage>(
-        UiMessage{agent::Role::Tool, agent::i18n::str("msg_tool_prefix") + tc.name,
-                  tc.args + "  →  " + tc.result, true, tc.name}));
+        UiMessage{agent::Role::Tool, "Tool",
+                  agent::i18n::str("msg_tool_prefix") + rec.name,
+                  rec.args + "  →  " + rec.result, true, rec.name}));
 }

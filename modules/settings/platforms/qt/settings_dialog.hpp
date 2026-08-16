@@ -1,4 +1,7 @@
-// AriaAgent — settings dialog (DeepSeek-harness-style: left nav + right cards).
+// AriaAgent — settings dialog (settings module, Qt shell).
+// DeepSeek-harness-style: left nav + right cards. All text comes from the
+// SettingsVm Properties (auto-localized); edits write back to the VM and
+// save() persists through the SettingsStore service.
 #pragma once
 
 #include <QDialog>
@@ -9,16 +12,14 @@ class QLineEdit;
 class QComboBox;
 class QCheckBox;
 
+class AppText;
+class SettingsVm;
+
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit SettingsDialog(QWidget* parent = nullptr, int initialPage = 1);
-
-    // Current effective config (reads env defaults, overwritten by saved).
-    QString baseUrl() const;
-    QString apiKey() const;
-    QString model() const;
-    QString systemPrompt() const;
+    explicit SettingsDialog(SettingsVm* vm, AppText* texts,
+                            QWidget* parent = nullptr, int initialPage = 1);
 
 private:
     void build_general_page(QStackedWidget* stack);
@@ -26,6 +27,9 @@ private:
     void build_plugins_page(QStackedWidget* stack);
     void build_presets_page(QStackedWidget* stack);
     void save();
+
+    SettingsVm* vm_;
+    AppText*    texts_;
 
     QListWidget*   nav_;
     QStackedWidget* stack_;

@@ -1,9 +1,9 @@
 # ============================================================================
-#  AriaAgent core — pure C++, zero Qt. Builds two static libs:
-#    ariaagent_core         agent engine + tools + session store (no UI, no Qt)
-#    ariaagent_viewmodel    framework-agnostic ViewModel (aria Property/Signal)
+#  AriaAgent core — pure C++, zero Qt.
+#    ariaagent_core    agent engine + tools + session store + i18n +
+#                      ServiceHub (DI) + module_api (BaseVm/IModule/Registry)
 #
-#  Any platform shell (Qt desktop, iOS UIKit, Android) links these and
+#  Any platform shell (Qt desktop, iOS UIKit, Android) links this and
 #  provides its own views + platform services. Nothing in this directory may
 #  include Qt headers or link Qt targets.
 # ============================================================================
@@ -14,8 +14,12 @@ set(CPPHTTPLIB_DIR ${ARIA_DIR}/third_party/cpp-httplib)
 
 find_package(OpenSSL REQUIRED)   # HTTPS transport for the LLM client
 
-# ── ariaagent_core: engine + tools + i18n ──────────────────────────────────
-file(GLOB CORE_SRC CONFIGURE_DEPENDS agent/*.cpp i18n/*.cpp)
+# ── ariaagent_core: engine + tools + i18n + services ───────────────────────
+file(GLOB CORE_SRC CONFIGURE_DEPENDS
+    agent/*.cpp
+    i18n/*.cpp
+    services/*.cpp
+)
 add_library(ariaagent_core STATIC ${CORE_SRC})
 target_include_directories(ariaagent_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -36,16 +40,3 @@ target_link_libraries(ariaagent_core PUBLIC
 if(WIN32)
     target_link_libraries(ariaagent_core PUBLIC ws2_32 crypt32)
 endif()
-
-# ── ariaagent_viewmodel: framework-agnostic VM ───────────────────────────────────
-add_library(ariaagent_viewmodel STATIC
-    viewmodel/chat_view_model.cpp
-)
-target_include_directories(ariaagent_viewmodel PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
-target_link_libraries(ariaagent_viewmodel PUBLIC
-    ariaagent_core
-    aria::binding
-    aria::runtime
-)
