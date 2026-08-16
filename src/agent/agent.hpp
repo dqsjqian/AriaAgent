@@ -42,10 +42,23 @@ public:
                          std::unique_ptr<LlmClient> client = {});
     ~AgentEngine();
 
-    // Synchronous run: blocks the calling thread until done.
+    // Run one turn against a shared, caller-owned conversation log.
+    //
+    // messages: in/out — the caller appends the user message, the engine
+    // appends the assistant reply (and any tool messages) on success, so a
+    // multi-turn conversation naturally accumulates and can be persisted.
+    // The first message must be a Role::System message (the system prompt).
     // Returns final text reply. Throws std::runtime_error on API errors.
+    std::string run(MessageList& messages, const AgentCallbacks& cb);
+
+    // Convenience: run a fresh one-turn conversation (system + user).
     std::string run(const std::string& user_input,
-                    const AgentCallbacks& cb);
+                    const AgentCallbacks& cb) {
+        MessageList m;
+        m.push_back({Role::System, cfg_.system_prompt, {}, "", "", false});
+        m.push_back({Role::User, user_input, {}, "", "", false});
+        return run(m, cb);
+    }
 
     // Override the system prompt (e.g. from settings/env) for subsequent runs.
     void set_system_prompt(std::string prompt) { cfg_.system_prompt = std::move(prompt); }

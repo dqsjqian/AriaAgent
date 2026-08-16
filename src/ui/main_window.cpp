@@ -11,6 +11,7 @@
 #include <QLabel>
 #include <QListView>
 #include <QListWidget>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
@@ -183,10 +184,15 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     new_chat_btn_->setMinimumHeight(40);
 
     session_list_ = new QListWidget(this);
-    session_list_->addItem(QStringLiteral("💬 工作区"));
-    session_list_->addItem(QStringLiteral("💬 新对话"));
     session_list_->setFixedWidth(240);
-    session_list_->setCurrentRow(1);
+    session_list_->setContextMenuPolicy(Qt::CustomContextMenu);
+    // Populate from the store.
+    const auto sess = vm_->sessions();
+    for (const auto& s : sess) {
+        auto* it = new QListWidgetItem(QString::fromStdString(s.title), session_list_);
+        it->setData(Qt::UserRole, QString::fromStdString(s.id));
+        if (s.id == vm_->current_session_id()) session_list_->setCurrentItem(it);
+    }
 
     settings_btn_ = new QPushButton(QStringLiteral("⚙ 设置"), this);
     settings_btn_->setCursor(Qt::PointingHandCursor);
@@ -306,6 +312,32 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         dlg.exec();   // modal; save() persists to QSettings + env
     });
 
+    // Session list: click to switch, context menu to delete.
+    connect(session_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
+        if (!it) return;
+        vm_->switch_session(it->data(Qt::UserRole).toString());
+    });
+    connect(session_list_, &QListWidget::customContextMenuRequested, this,
+            [this](const QPoint& pos) {
+        auto* it = session_list_->itemAt(pos);
+        if (!it) return;
+        QMenu menu(this);
+        auto* del = menu.addAction(QStringLiteral("删除会话"));
+        if (menu.exec(session_list_->mapToGlobal(pos)) == del) {
+            vm_->delete_session(it->data(Qt::UserRole).toString());
+        }
+    });
+    // Refresh the sidebar whenever the session set changes.
+    connect(vm_, &ChatViewModel::sessionChanged, this, [this] {
+        session_list_->clear();
+        const auto sessions_now = vm_->sessions();
+        for (const auto& s : sessions_now) {
+            auto* it = new QListWidgetItem(QString::fromStdString(s.title), session_list_);
+            it->setData(Qt::UserRole, QString::fromStdString(s.id));
+            if (s.id == vm_->current_session_id()) session_list_->setCurrentItem(it);
+        }
+    });
+
     auto busy_sub = vm_->busy.observe([this](bool b, bool) {
         QMetaObject::invokeMethod(this, [this, b] {
             send_btn_->setEnabled(!b);
@@ -344,13 +376,8 @@ void MainWindow::on_stop() {
 }
 
 void MainWindow::on_new_chat() {
-    vm_->stop();
-    vm_->messages.clear();
-    vm_->tool_trace.clear();
-    vm_->phase_text = "";
+    vm_->new_session();   // creates + switches; sessionChanged refreshes sidebar
     phase_label_->setText(QStringLiteral(""));
-    session_list_->insertItem(0, QStringLiteral("💬 新对话"));
-    session_list_->setCurrentRow(0);
 }
 
 void MainWindow::scroll_bottom() {

@@ -28,14 +28,11 @@ LlmClient& AgentEngine::client() {
     return *client_;
 }
 
-std::string AgentEngine::run(const std::string& user_input,
-                             const AgentCallbacks& cb) {
+std::string AgentEngine::run(MessageList& messages, const AgentCallbacks& cb) {
     trace_.clear();
 
-    MessageList messages;
-    messages.push_back({Role::System, cfg_.system_prompt, {}, "", "", false});
-    messages.push_back({Role::User, user_input, {}, "", "", false});
-
+    // messages is the caller's conversation log. On success we append the
+    // assistant reply below; tool messages are appended inline during the loop.
     json tools = registry_.schema();
 
     if (cb.on_phase) cb.on_phase(AgentPhase::Thinking);
@@ -106,8 +103,11 @@ std::string AgentEngine::run(const std::string& user_input,
             continue;   // loop: send updated conversation back to the model
         }
 
-        // ── No tool calls → done ──
+        // ── No tool calls → done: append the assistant reply to the log ──
         if (cb.on_phase) cb.on_phase(AgentPhase::Done);
+        if (!assistant_text.empty()) {
+            messages.push_back({Role::Assistant, assistant_text, {}, "", "", false});
+        }
         return assistant_text;
     }
 
