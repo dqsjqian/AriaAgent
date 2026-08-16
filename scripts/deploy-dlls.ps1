@@ -14,6 +14,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# Accept a repo-root-relative or absolute path.
+if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
+    $BuildDir = Join-Path (Split-Path -Parent $PSScriptRoot) $BuildDir
+}
+
 $Exe = Join-Path $BuildDir "aria_agent.exe"
 if (-not (Test-Path $Exe)) { Write-Host "exe not found: $Exe" -ForegroundColor Red; exit 1 }
 
