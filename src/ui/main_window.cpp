@@ -3,9 +3,11 @@
 // linear icons, large rounded input bar, model picker, bubble chat).
 #include "ui/main_window.hpp"
 #include "ui/chat_view_model.hpp"
+#include "ui/markdown_render.hpp"
 #include "ui/settings_dialog.hpp"
 
 #include <QApplication>
+#include <QAbstractTextDocumentLayout>
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -50,18 +52,31 @@ class BubbleDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
 
+    // Build a QTextDocument for the message (markdown for assistant/tool,
+    // plain text for user). Returns the doc; caller owns it.
+    static QTextDocument* make_doc(const QString& text, bool isUser,
+                                   bool isTool, const QFont& font) {
+        auto* doc = new QTextDocument;
+        doc->setDefaultFont(font);
+        doc->setDocumentMargin(10);
+        if (isUser || isTool) {
+            doc->setPlainText(text);
+        } else {
+            agent_ui::render_markdown(text, *doc);
+        }
+        return doc;
+    }
+
     QSize sizeHint(const QStyleOptionViewItem& opt,
                    const QModelIndex& idx) const override {
         const QString text = idx.data(RoleText).toString();
-        const bool isTool = idx.data(RoleIsTool).toBool();
+        const bool isUser  = idx.data(RoleAuthor).toString() == "You";
+        const bool isTool  = idx.data(RoleIsTool).toBool();
         const int maxW = isTool ? 460 : 640;
-        QFontMetrics fm(opt.font);
-        const int charW = std::max(1, fm.averageCharWidth());
-        const int cpl = std::max(20, maxW / charW);
-        int lines = 0;
-        for (const auto& part : text.split('\n'))
-            lines += std::max(1, (static_cast<int>(part.size()) + cpl - 1) / cpl);
-        const int h = lines * fm.lineSpacing() + 28;
+
+        std::unique_ptr<QTextDocument> doc(make_doc(text, isUser, isTool, opt.font));
+        doc->setTextWidth(maxW - 20);
+        const int h = static_cast<int>(doc->size().height()) + 22;
         return QSize(maxW + 16, h);
     }
 
@@ -72,26 +87,16 @@ public:
 
         const QString author = idx.data(RoleAuthor).toString();
         const QString text   = idx.data(RoleText).toString();
+        const bool isUser    = author == "You";
         const bool isTool    = idx.data(RoleIsTool).toBool();
         const QString tool   = idx.data(RoleToolName).toString();
 
-        const bool isUser = author == "You";
         const QRect r = opt.rect.adjusted(8, 4, -8, -4);
-
         QColor bubble = isTool ? QColor(kBubbleTool)
                                : (isUser ? QColor(kBubbleUser) : QColor(kBubbleAsst));
         const int maxW = isTool ? 460 : 640;
-        QFontMetrics fm(opt.font);
-        const int charW = std::max(1, fm.averageCharWidth());
-        const int cpl = std::max(20, maxW / charW);
-        int lines = 0;
-        for (const auto& part : text.split('\n'))
-            lines += std::max(1, (static_cast<int>(part.size()) + cpl - 1) / cpl);
-        const int textH = lines * fm.lineSpacing();
-
         const int bw = std::min(r.width() - 24, maxW);
-        const int bh = textH + 24;
-        int bx = isUser ? (r.right() - bw) : r.left();   // right-/left-aligned
+        int bx = isUser ? (r.right() - bw) : r.left();
         const int by = r.y() + 4;
 
         // Optional label (assistant name / tool name)
@@ -106,16 +111,21 @@ public:
         }
         const int bubbleTop = by + headerH;
 
-        // Bubble background
+        // Render the document to get its height, then draw bubble around it.
+        std::unique_ptr<QTextDocument> doc(make_doc(text, isUser, isTool, opt.font));
+        doc->setTextWidth(bw - 20);
+        const int bh = static_cast<int>(doc->size().height()) + 12;
+
         QPainterPath path;
         path.addRoundedRect(QRectF(bx, bubbleTop, bw, bh), 12, 12);
         p->fillPath(path, bubble);
 
-        // Text
-        p->setFont(opt.font);
-        p->setPen(QColor(kText));
-        p->drawText(QRect(bx + 12, bubbleTop + 6, bw - 24, textH),
-                    Qt::AlignLeft | Qt::TextWordWrap, text);
+        // Draw the document inside the bubble (transparent bg → bubble shows).
+        p->translate(bx + 10, bubbleTop + 6);
+        QAbstractTextDocumentLayout::PaintContext ctx;
+        ctx.palette.setColor(QPalette::Text, QColor(kText));
+        ctx.palette.setColor(QPalette::Link, QColor(kAccent));
+        doc->documentLayout()->draw(p, ctx);
 
         p->restore();
     }
