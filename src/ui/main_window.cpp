@@ -442,10 +442,6 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         QMetaObject::invokeMethod(this, &MainWindow::refresh_todo, Qt::QueuedConnection);
     });
     refresh_todo();
-    connect(settings_btn_, &QPushButton::clicked, this, [this] {
-        SettingsDialog dlg(this);
-        dlg.exec();   // modal; save() persists to QSettings + env
-    });
 
     // Right-click a chat message → feedback menu (P2-4).
     chat_list_->setContextMenuPolicy(Qt::CustomContextMenu);

@@ -88,9 +88,13 @@ std::vector<SessionMeta> SessionStore::list() const {
             out.push_back(std::move(m));
         } catch (...) { /* skip corrupt file */ }
     }
+    // Stable ordering by creation time (newest first), like ChatGPT's
+    // sidebar. NOT updated_at: persisting the *previous* session during
+    // switch_session() bumps its updated_at to "now", which would reorder
+    // the list mid-click and make the selected row jump.
     std::sort(out.begin(), out.end(),
               [](const SessionMeta& a, const SessionMeta& b) {
-                  return a.updated_at > b.updated_at;
+                  return a.created_at > b.created_at;
               });
     return out;
 }
