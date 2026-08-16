@@ -25,6 +25,8 @@ private:
     void on_new_chat();
     void scroll_bottom();
     void toggle_trajectory();
+    void toggle_todo();
+    void refresh_todo();
     void show_message_menu(const QPoint& pos);
 
     ChatViewModel* vm_;
@@ -37,10 +39,14 @@ private:
     // chat area
     QListView*  chat_list_;
     QListView*  trajectory_list_;
+    QListWidget* todo_list_;
     QTextEdit*  input_;
     QPushButton* send_btn_;
     QPushButton* traj_btn_;
+    QPushButton* todo_btn_;
     QLabel*     phase_label_;
     QLabel*     model_label_;
+    QStackedWidget* right_panel_;
     bool        trajectory_visible_{false};
+    int         todo_sub_id_{0};
 };
