@@ -12,7 +12,7 @@ class QCheckBox;
 class SettingsDialog : public QDialog {
     Q_OBJECT
 public:
-    explicit SettingsDialog(QWidget* parent = nullptr);
+    explicit SettingsDialog(QWidget* parent = nullptr, int initialPage = 1);
 
     // Current effective config (reads env defaults, overwritten by saved).
     QString baseUrl() const;

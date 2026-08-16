@@ -31,7 +31,7 @@ QString env_or(const char* name, const QString& fallback) {
 
 } // namespace
 
-SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
+SettingsDialog::SettingsDialog(QWidget* parent, int initialPage) : QDialog(parent) {
     setWindowTitle(QStringLiteral("设置 — AriaAgent"));
     resize(720, 520);
 
@@ -57,7 +57,7 @@ SettingsDialog::SettingsDialog(QWidget* parent) : QDialog(parent) {
 
     connect(nav_, &QListWidget::currentRowChanged,
             stack_, &QStackedWidget::setCurrentIndex);
-    nav_->setCurrentRow(1);   // land on Model page like DeepSeek's default view
+    nav_->setCurrentRow(initialPage);   // jump straight to the requested page (default: Model)
 
     auto* save_btn = new QPushButton(QStringLiteral("保存"), this);
     save_btn->setObjectName(QStringLiteral("primary"));

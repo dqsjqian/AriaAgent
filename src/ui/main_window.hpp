@@ -28,6 +28,9 @@ private:
     void toggle_todo();
     void refresh_todo();
     void show_message_menu(const QPoint& pos);
+    void on_attach_file();
+    void on_workspace_mode_toggle(bool checked);
+    void on_open_settings();
 
     ChatViewModel* vm_;
 
@@ -44,6 +47,9 @@ private:
     QPushButton* send_btn_;
     QPushButton* traj_btn_;
     QPushButton* todo_btn_;
+    QPushButton* plus_btn_;       // +  attachment / upload
+    QPushButton* tool_btn_;       // 🛠  Workspace Write ↔ Read-Only toggle
+    QPushButton* model_pick_;     // model picker -> SettingsDialog Model page
     QLabel*     phase_label_;
     QLabel*     model_label_;
     QStackedWidget* right_panel_;

@@ -49,7 +49,14 @@ function Get-Imports($filePath) {
 }
 
 # System DLLs that must never be copied.
-$SystemDll = '^(api-ms-win|kernel32|user32|gdi32|advapi32|shell32|ole32|oleaut32|comdlg32|ws2_32|crypt32|dwmapi|winmm|version|shcore|ucrtbase|vcruntime|winhttp|wldap32|netapi32|secur32|authz|mpr|rpcrt4|userenv|usp10|uxtheme|d3d11|d3d12|dxgi|ntdll|dwrite)'
+$SystemDll = '^(kernel32|user32|gdi32|advapi32|shell32|ole32|oleaut32|comdlg32|ws2_32|crypt32|dwmapi|winmm|version|shcore|ucrtbase|vcruntime|winhttp|wldap32|netapi32|secur32|authz|mpr|rpcrt4|userenv|usp10|uxtheme|d3d11|d3d12|dxgi|ntdll|dwrite)'
+
+# Extra DLL stores we always pull from (in addition to MSYS2/bin and build/bin).
+# - api-ms-win-crt-*.dll live in System32\downlevel on Win10/11 (not in PATH).
+# - System32 itself holds the forwarders but some builds reference them directly.
+$ExtraSources = @(
+    [pscustomobject]@{Path = "$env:WINDIR\System32\downlevel"; Re = '^api-ms-win-'}
+)
 
 Write-Host "[deploy] copying runtime dependencies..." -ForegroundColor Cyan
 $queue = @($Exe)
@@ -63,7 +70,12 @@ while ($queue.Count -gt 0) {
         if ($dll -match $SystemDll) { continue }
         $dest = Join-Path $BuildDir $dll
         if (Test-Path $dest) { $queue += $dest; continue }
-        foreach ($srcDir in @($Msys2Bin, $AriaBin)) {
+        $candidates = @($Msys2Bin, $AriaBin)
+        foreach ($e in $ExtraSources) {
+            if ($dll -match $e.Re) { $candidates += $e.Path }
+        }
+        foreach ($srcDir in $candidates) {
+            if (-not (Test-Path $srcDir)) { continue }
             $src = Join-Path $srcDir $dll
             if (Test-Path $src) {
                 Copy-Item -Path $src -Destination $dest -Force
