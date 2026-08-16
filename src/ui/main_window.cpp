@@ -6,6 +6,8 @@
 #include "ui/markdown_render.hpp"
 #include "ui/settings_dialog.hpp"
 
+#include "agent/todo_store.hpp"
+
 #include <QApplication>
 #include <QAbstractTextDocumentLayout>
 #include <QFrame>
@@ -19,6 +21,7 @@
 #include <QPainterPath>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QStackedWidget>
 #include <QStyledItemDelegate>
 #include <QTextEdit>
 #include <QVBoxLayout>
@@ -302,6 +305,8 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     traj_btn_ = new QPushButton(QStringLiteral("🕒 轨迹"), this);
     traj_btn_->setCursor(Qt::PointingHandCursor);
+    todo_btn_ = new QPushButton(QStringLiteral("✅ Todo"), this);
+    todo_btn_->setCursor(Qt::PointingHandCursor);
 
     auto* top_bar = new QHBoxLayout;
     top_bar->setContentsMargins(0, 0, 0, 0);
@@ -311,6 +316,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     top_bar->addWidget(model_label_);
     top_bar->addStretch();
     top_bar->addWidget(traj_btn_);
+    top_bar->addWidget(todo_btn_);
     top_bar->addWidget(phase_label_);
 
     chat_list_ = new QListView(this);
@@ -376,7 +382,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     auto* chat_w = new QWidget(this);
     chat_w->setLayout(chat);
 
-    // ── Trajectory panel (collapsible, right side) ────────────────────────
+    // ── Trajectory / Todo panel (collapsible, right side) ─────────────────
     trajectory_list_ = new QListView(this);
     trajectory_list_->setModel(new aria::adapters::qt6::ObservableListModel<UiToolCall>(
         vm_->tool_trace,
@@ -386,18 +392,29 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     trajectory_list_->setSelectionMode(QAbstractItemView::NoSelection);
     trajectory_list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     trajectory_list_->setFocusPolicy(Qt::NoFocus);
-    trajectory_list_->setFixedWidth(340);
     trajectory_list_->setStyleSheet(QStringLiteral(
         "QListView { background:%1; border-left:1px solid %2; padding:10px; }")
         .arg(kPanel, kBorder));
-    trajectory_list_->setVisible(false);   // hidden until toggled
+
+    todo_list_ = new QListWidget(this);
+    todo_list_->setSelectionMode(QAbstractItemView::NoSelection);
+    todo_list_->setStyleSheet(QStringLiteral(
+        "QListWidget { background:%1; border-left:1px solid %2; padding:10px; }"
+        "QListWidget::item { padding:10px 12px; border-radius:8px; }")
+        .arg(kPanel, kBorder));
+
+    right_panel_ = new QStackedWidget(this);
+    right_panel_->addWidget(trajectory_list_);   // page 0: trajectory
+    right_panel_->addWidget(todo_list_);         // page 1: todo
+    right_panel_->setFixedWidth(340);
+    right_panel_->setVisible(false);   // hidden until toggled
 
     auto* root = new QHBoxLayout;
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
     root->addWidget(sidebar_w);
     root->addWidget(chat_w, 1);
-    root->addWidget(trajectory_list_);
+    root->addWidget(right_panel_);
     auto* root_w = new QWidget(this);
     root_w->setLayout(root);
     setCentralWidget(root_w);
@@ -406,6 +423,13 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     connect(send_btn_, &QPushButton::clicked, this, &MainWindow::on_send);
     connect(new_chat_btn_, &QPushButton::clicked, this, &MainWindow::on_new_chat);
     connect(traj_btn_, &QPushButton::clicked, this, &MainWindow::toggle_trajectory);
+    connect(todo_btn_, &QPushButton::clicked, this, &MainWindow::toggle_todo);
+
+    // Reactive todo projection: refresh the list whenever the store changes.
+    todo_sub_id_ = agent::TodoStore::instance().subscribe([this] {
+        QMetaObject::invokeMethod(this, &MainWindow::refresh_todo, Qt::QueuedConnection);
+    });
+    refresh_todo();
     connect(settings_btn_, &QPushButton::clicked, this, [this] {
         SettingsDialog dlg(this);
         dlg.exec();   // modal; save() persists to QSettings + env
@@ -485,11 +509,31 @@ void MainWindow::on_new_chat() {
 }
 
 void MainWindow::toggle_trajectory() {
-    trajectory_visible_ = !trajectory_visible_;
-    trajectory_list_->setVisible(trajectory_visible_);
-    traj_btn_->setStyleSheet(trajectory_visible_
-        ? QStringLiteral("background:#3b82f6; color:white; border-radius:8px; padding:6px 12px;")
-        : QString());
+    trajectory_visible_ = true;
+    right_panel_->setVisible(true);
+    right_panel_->setCurrentIndex(0);
+    traj_btn_->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; border-radius:8px; padding:6px 12px;"));
+    todo_btn_->setStyleSheet(QString());
+}
+
+void MainWindow::toggle_todo() {
+    trajectory_visible_ = true;
+    right_panel_->setVisible(true);
+    right_panel_->setCurrentIndex(1);
+    todo_btn_->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; border-radius:8px; padding:6px 12px;"));
+    traj_btn_->setStyleSheet(QString());
+}
+
+void MainWindow::refresh_todo() {
+    todo_list_->clear();
+    const auto items = agent::TodoStore::instance().snapshot();
+    for (const auto& it : items) {
+        const char* mark = it.status == agent::TodoStatus::Done ? "✅"
+                          : it.status == agent::TodoStatus::InProgress ? "🔄" : "⬜";
+        auto* li = new QListWidgetItem(QStringLiteral("%1 %2")
+            .arg(QString::fromUtf8(mark), QString::fromStdString(it.content)));
+        todo_list_->addItem(li);
+    }
 }
 
 void MainWindow::show_message_menu(const QPoint& pos) {
