@@ -44,10 +44,13 @@ if(ARIA_TARGET_QT)
 endif()
 add_subdirectory(${ARIA_DIR} aria)
 
-# ── Pure-C++ core (agent engine + viewmodel) ────────────────────────────────
+# ── Pure-C++ core (agent engine + services + module API) ─────────────────────
 add_subdirectory(core)
+
+# ── Business modules (plugin pattern; see modules/CMakeLists.txt) ───────────
+add_subdirectory(modules)
 
 # ── Platform shell ──────────────────────────────────────────────────────────
 if(ARIA_TARGET_QT)
-    add_subdirectory(platform/qt)
+    add_subdirectory(modules/app/platforms/qt)
 endif()

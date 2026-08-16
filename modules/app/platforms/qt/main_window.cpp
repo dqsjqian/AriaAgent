@@ -1,21 +1,24 @@
-// AriaAgent — main window.
-// UI design follows DeepSeek's official harness web UI (deep dark theme,
-// linear icons, large rounded input bar, model picker, bubble chat).
+// AriaAgent — main window (app module, Qt shell).
+// UI design follows DeepSeek's official harness web UI. Binds the module
+// ViewModels; all text comes from AppText / VM Properties.
 #include "main_window.hpp"
-#include "viewmodel/chat_view_model.hpp"
-#include "markdown_render.hpp"
-#include "settings_dialog.hpp"
-#include "theme.hpp"
 
+#include "app/viewmodel/app_text.hpp"
+#include "chat/viewmodel/chat_view_model.hpp"
 #include "i18n/I18n.h"
+#include "sessions/viewmodel/session_list_vm.hpp"
+#include "settings/viewmodel/settings_vm.hpp"
+#include "settings/platforms/qt/settings_dialog.hpp"
+#include "todo/viewmodel/todo_vm.hpp"
+#include "trajectory/viewmodel/trajectory_vm.hpp"
 
-#include "agent/todo_store.hpp"
+#include "markdown_render.hpp"
+#include "theme.hpp"
 
 #include <QApplication>
 #include <QAbstractTextDocumentLayout>
 #include <QFrame>
 #include <QFileDialog>
-#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListView>
@@ -37,15 +40,12 @@
 
 namespace {
 
-// ── Theme (shared with settings dialog + markdown renderer) ────────────────
-// Palette is defined in qt/theme.hpp; g_theme holds the active one and is
-// reloaded by MainWindow::apply_theme().
 using agent_ui::Theme;
 using agent_ui::g_theme;
-using agent_ui::load_theme;
 
 enum : int {
     RoleAuthor  = Qt::UserRole + 1,
+    RoleDisplay,
     RoleText,
     RoleIsTool,
     RoleToolName,
@@ -56,8 +56,6 @@ class BubbleDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
 
-    // Build a QTextDocument for the message (markdown for assistant/tool,
-    // plain text for user). Returns the doc; caller owns it.
     static QTextDocument* make_doc(const QString& text, bool isUser,
                                    bool isTool, const QFont& font) {
         auto* doc = new QTextDocument;
@@ -89,11 +87,12 @@ public:
         p->save();
         p->setRenderHint(QPainter::Antialiasing);
 
-        const QString author = idx.data(RoleAuthor).toString();
-        const QString text   = idx.data(RoleText).toString();
-        const bool isUser    = author == "You";
-        const bool isTool    = idx.data(RoleIsTool).toBool();
-        const QString tool   = idx.data(RoleToolName).toString();
+        const QString author  = idx.data(RoleAuthor).toString();
+        const QString display = idx.data(RoleDisplay).toString();
+        const QString text    = idx.data(RoleText).toString();
+        const bool isUser     = author == "You";
+        const bool isTool     = idx.data(RoleIsTool).toBool();
+        const QString tool    = idx.data(RoleToolName).toString();
 
         const QRect r = opt.rect.adjusted(8, 4, -8, -4);
         QColor bubble = isTool ? QColor(g_theme.bubble_tool)
@@ -103,20 +102,17 @@ public:
         int bx = isUser ? (r.right() - bw) : r.left();
         const int by = r.y() + 4;
 
-        // Optional label (assistant name / tool name)
         int headerH = 0;
         if (!isUser) {
             headerH = 18;
             QFont f = opt.font; f.setPointSizeF(f.pointSizeF() - 1.5);
             p->setFont(f);
             p->setPen(isTool ? QColor("#60a5fa") : QColor(g_theme.text_dim));
-            const QString head = isTool ? (QString::fromStdString(agent::i18n::str("msg_tool_prefix")) + tool)
-                                          : QString::fromStdString(agent::i18n::str("msg_agent"));
+            const QString head = isTool ? display + " " + tool : display;
             p->drawText(bx + 4, by, bw, 16, Qt::AlignLeft | Qt::AlignVCenter, head);
         }
         const int bubbleTop = by + headerH;
 
-        // Render the document to get its height, then draw bubble around it.
         std::unique_ptr<QTextDocument> doc(make_doc(text, isUser, isTool, opt.font));
         doc->setTextWidth(bw - 20);
         const int bh = static_cast<int>(doc->size().height()) + 12;
@@ -125,7 +121,6 @@ public:
         path.addRoundedRect(QRectF(bx, bubbleTop, bw, bh), 12, 12);
         p->fillPath(path, bubble);
 
-        // Draw the document inside the bubble (transparent bg → bubble shows).
         p->translate(bx + 10, bubbleTop + 6);
         QAbstractTextDocumentLayout::PaintContext ctx;
         ctx.palette.setColor(QPalette::Text, QColor(g_theme.text));
@@ -139,10 +134,11 @@ public:
 // ── Bind aria list → Qt model ───────────────────────────────────────────────
 QVariant chat_data_fn(const UiMessage& m, int role) {
     switch (role) {
-        case RoleAuthor:  return QString::fromStdString(m.author);
-        case RoleText:    return QString::fromStdString(m.text);
-        case RoleIsTool:  return m.is_tool;
-        case RoleToolName:return QString::fromStdString(m.tool_name);
+        case RoleAuthor:   return QString::fromStdString(m.author);
+        case RoleDisplay:  return QString::fromStdString(m.display);
+        case RoleText:     return QString::fromStdString(m.text);
+        case RoleIsTool:   return m.is_tool;
+        case RoleToolName: return QString::fromStdString(m.tool_name);
         default: return {};
     }
 }
@@ -217,7 +213,9 @@ public:
 
 // ── MainWindow ──────────────────────────────────────────────────────────────
 void MainWindow::apply_theme() {
-    g_theme = load_theme();
+    // The theme value lives in the SettingsVm (persisted via SettingsStore);
+    // resolve the palette from it — never from QSettings (stale).
+    g_theme = agent_ui::resolve_theme(settings_vm_->theme.get());
     const Theme& t = g_theme;
 
     setStyleSheet(QStringLiteral(
@@ -259,16 +257,22 @@ void MainWindow::apply_theme() {
     }
 }
 
-MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
-    : QMainWindow(parent), vm_(vm) {
-    setWindowTitle(QString::fromStdString(agent::i18n::str("window_title")));
+MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
+    : QMainWindow(parent),
+      texts_(&hub.service<AppText>()),
+      settings_vm_(vms.view_model_as<SettingsVm>("settings").get()),
+      sessions_vm_(vms.view_model_as<SessionListVm>("sessions").get()),
+      traj_vm_(vms.view_model_as<TrajectoryVm>("trajectory").get()),
+      todo_vm_(vms.view_model_as<TodoVm>("todo").get()),
+      chat_vm_(vms.view_model_as<ChatViewModel>("chat").get()) {
+    setWindowTitle(QString::fromStdString(texts_->text("window_title")));
     resize(1280, 820);
     setMinimumSize(960, 640);
 
     // ── Sidebar ────────────────────────────────────────────────────────────
     auto* logo_box = new QHBoxLayout;
     logo_box->setSpacing(8);
-    auto* logo_lab = new QLabel(QString::fromStdString(agent::i18n::str("app_name")), this);
+    auto* logo_lab = new QLabel(QString::fromStdString(texts_->text("app_name")), this);
     logo_lab->setStyleSheet(QStringLiteral("color:white; font-weight:700; font-size:16px;"));
     auto* tag_lab = new QLabel(QStringLiteral("HARNESS"), this);
     tag_lab->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; font-size:10px;"
@@ -277,7 +281,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     logo_box->addWidget(tag_lab);
     logo_box->addStretch();
 
-    new_chat_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("new_chat")), this);
+    new_chat_btn_ = new QPushButton(QString::fromStdString(texts_->text("new_chat")), this);
     new_chat_btn_->setObjectName(QStringLiteral("primary"));
     new_chat_btn_->setCursor(Qt::PointingHandCursor);
     new_chat_btn_->setMinimumHeight(40);
@@ -285,15 +289,8 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     session_list_ = new QListWidget(this);
     session_list_->setFixedWidth(240);
     session_list_->setContextMenuPolicy(Qt::CustomContextMenu);
-    // Populate from the store.
-    const auto sess = vm_->sessions();
-    for (const auto& s : sess) {
-        auto* it = new QListWidgetItem(QString::fromStdString(s.title), session_list_);
-        it->setData(Qt::UserRole, QString::fromStdString(s.id));
-        if (s.id == vm_->current_session_id()) session_list_->setCurrentItem(it);
-    }
 
-    settings_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("settings")), this);
+    settings_btn_ = new QPushButton(QString::fromStdString(texts_->text("settings")), this);
     settings_btn_->setCursor(Qt::PointingHandCursor);
 
     auto* sidebar = new QVBoxLayout;
@@ -311,17 +308,17 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     sidebar_w->setLayout(sidebar);
 
     // ── Chat area: top bar + bubble list + input ──────────────────────────
-    auto* tag_ws = new QLabel(QString::fromStdString(agent::i18n::str("workspace")), this);
+    auto* tag_ws = new QLabel(QString::fromStdString(texts_->text("workspace")), this);
     tag_ws->setObjectName(QStringLiteral("workspaceTag"));
 
-    model_label_ = new QLabel(QString::fromStdString(agent::i18n::str("app_subtitle")), this);
+    model_label_ = new QLabel(QString::fromStdString(texts_->text("app_subtitle")), this);
 
     phase_label_ = new QLabel(this);
     phase_label_->setObjectName(QStringLiteral("phase"));
 
-    traj_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("trajectory")), this);
+    traj_btn_ = new QPushButton(QString::fromStdString(texts_->text("trajectory")), this);
     traj_btn_->setCursor(Qt::PointingHandCursor);
-    todo_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("todo")), this);
+    todo_btn_ = new QPushButton(QString::fromStdString(texts_->text("todo")), this);
     todo_btn_->setCursor(Qt::PointingHandCursor);
 
     auto* top_bar = new QHBoxLayout;
@@ -337,8 +334,8 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     chat_list_ = new QListView(this);
     chat_list_->setModel(new aria::adapters::qt6::ObservableListModel<UiMessage>(
-        vm_->messages,
-        QHash<int,QByteArray>{{RoleAuthor,"author"},{RoleText,"text"},{RoleIsTool,"tool"},{RoleToolName,"toolname"}},
+        chat_vm_->messages,
+        QHash<int,QByteArray>{{RoleAuthor,"author"},{RoleDisplay,"display"},{RoleText,"text"},{RoleIsTool,"tool"},{RoleToolName,"toolname"}},
         chat_data_fn, chat_list_));
     chat_list_->setItemDelegate(new BubbleDelegate(chat_list_));
     chat_list_->setSelectionMode(QAbstractItemView::NoSelection);
@@ -348,30 +345,29 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     chat_list_->setStyleSheet(QStringLiteral(
         "QListView { background:transparent; border:none; padding:8px; }"));
 
-    // ── Input bar: DeepSeek-style big rounded box with tools left, model + send right ──
+    // ── Input bar ──────────────────────────────────────────────────────────
     input_ = new QTextEdit(this);
-    input_->setPlaceholderText(QString::fromStdString(agent::i18n::str("input_placeholder")));
+    input_->setPlaceholderText(QString::fromStdString(texts_->text("input_placeholder")));
     input_->setFixedHeight(80);
     input_->setAcceptRichText(false);
 
     plus_btn_ = new QPushButton(QStringLiteral("+"), this);
     plus_btn_->setObjectName(QStringLiteral("primary"));
     plus_btn_->setFixedSize(30, 30);
-    plus_btn_->setToolTip(QString::fromStdString(agent::i18n::str("attach_tooltip")));
+    plus_btn_->setToolTip(QString::fromStdString(texts_->text("attach_tooltip")));
     plus_btn_->setCursor(Qt::PointingHandCursor);
 
     tool_btn_ = new QPushButton(QStringLiteral("🛠 Workspace Write"), this);
     tool_btn_->setCursor(Qt::PointingHandCursor);
-    tool_btn_->setToolTip(QString::fromStdString(agent::i18n::str("ws_tooltip")));
+    tool_btn_->setToolTip(QString::fromStdString(texts_->text("ws_tooltip")));
 
     model_pick_ = new QPushButton(QStringLiteral("DeepSeek-V4-Flash ▾"), this);
     model_pick_->setCursor(Qt::PointingHandCursor);
-    model_pick_->setToolTip(QString::fromStdString(agent::i18n::str("attach_tooltip")));
+    model_pick_->setToolTip(QString::fromStdString(texts_->text("attach_tooltip")));
 
     send_btn_ = new QPushButton(QStringLiteral("↑"), this);
     send_btn_->setObjectName(QStringLiteral("sendCircle"));
     send_btn_->setCursor(Qt::PointingHandCursor);
-    // Send button doubles as stop button while busy (text toggles ↑ / ⏹).
 
     auto* input_tools = new QHBoxLayout;
     input_tools->setSpacing(8);
@@ -405,7 +401,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     // ── Trajectory / Todo panel (collapsible, right side) ─────────────────
     trajectory_list_ = new QListView(this);
     trajectory_list_->setModel(new aria::adapters::qt6::ObservableListModel<UiToolCall>(
-        vm_->tool_trace,
+        traj_vm_->trace(),
         QHash<int,QByteArray>{{RoleToolName2,"name"},{RoleToolArgs,"args"},{RoleToolResult,"result"},{RoleToolOk,"ok"}},
         traj_data_fn, trajectory_list_));
     trajectory_list_->setItemDelegate(new TrajectoryDelegate(trajectory_list_));
@@ -426,8 +422,6 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     right_panel_->addWidget(todo_list_);         // page 1: todo
     right_panel_->setFixedWidth(340);
 
-    // Collapsible right-side container: title bar (label + ✕ collapse
-    // button) above the stacked panel. Clicking ✕ hides the whole thing.
     right_wrap_ = new QWidget(this);
     right_wrap_->setObjectName(QStringLiteral("rightPanel"));
     auto* rv = new QVBoxLayout(right_wrap_);
@@ -435,20 +429,20 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     rv->setSpacing(0);
     auto* rbar = new QHBoxLayout;
     rbar->setContentsMargins(14, 8, 8, 4);
-    auto* rtitle = new QLabel(QString::fromStdString(agent::i18n::str("panel_title")), right_wrap_);
+    auto* rtitle = new QLabel(QString::fromStdString(texts_->text("panel_title")), right_wrap_);
     rtitle->setObjectName(QStringLiteral("panelTitle"));
     rtitle->setStyleSheet(QStringLiteral("font-weight:600; color:%1;")
                           .arg(QString::fromUtf8(g_theme.text)));
     close_panel_btn_ = new QPushButton(QStringLiteral("✕"), right_wrap_);
     close_panel_btn_->setCursor(Qt::PointingHandCursor);
     close_panel_btn_->setFixedSize(28, 28);
-    close_panel_btn_->setToolTip(QString::fromStdString(agent::i18n::str("collapse_panel")));
+    close_panel_btn_->setToolTip(QString::fromStdString(texts_->text("collapse_panel")));
     rbar->addWidget(rtitle);
     rbar->addStretch();
     rbar->addWidget(close_panel_btn_);
     rv->addLayout(rbar);
     rv->addWidget(right_panel_, 1);
-    right_wrap_->setVisible(false);   // hidden until toggled
+    right_wrap_->setVisible(false);
 
     auto* root = new QHBoxLayout;
     root->setContentsMargins(0, 0, 0, 0);
@@ -476,12 +470,6 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     connect(model_pick_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
     connect(settings_btn_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
 
-    // Reactive todo projection: refresh the list whenever the store changes.
-    todo_sub_id_ = agent::TodoStore::instance().subscribe([this] {
-        QMetaObject::invokeMethod(this, &MainWindow::refresh_todo, Qt::QueuedConnection);
-    });
-    refresh_todo();
-
     // Right-click a chat message → feedback menu (P2-4).
     chat_list_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(chat_list_, &QListView::customContextMenuRequested,
@@ -490,62 +478,68 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     // Session list: click to switch, context menu to delete.
     connect(session_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
         if (!it) return;
-        vm_->switch_session(it->data(Qt::UserRole).toString().toStdString());
+        sessions_vm_->switch_session(it->data(Qt::UserRole).toString().toStdString());
     });
     connect(session_list_, &QListWidget::customContextMenuRequested, this,
             [this](const QPoint& pos) {
         auto* it = session_list_->itemAt(pos);
         if (!it) return;
         QMenu menu(this);
-        auto* del = menu.addAction(QString::fromStdString(agent::i18n::str("delete_session")));
+        auto* del = menu.addAction(QString::fromStdString(texts_->text("delete_session")));
         if (menu.exec(session_list_->mapToGlobal(pos)) == del) {
-            vm_->delete_session(it->data(Qt::UserRole).toString().toStdString());
+            sessions_vm_->delete_session(it->data(Qt::UserRole).toString().toStdString());
         }
     });
-    // Refresh the sidebar whenever the session set changes.
-    session_sub_ = vm_->session_changed.connect([this] {
-        session_list_->clear();
-        const auto sessions_now = vm_->sessions();
-        QListWidgetItem* current = nullptr;
-        for (const auto& s : sessions_now) {
-            auto* it = new QListWidgetItem(QString::fromStdString(s.title), session_list_);
-            it->setData(Qt::UserRole, QString::fromStdString(s.id));
-            if (s.id == vm_->current_session_id()) {
-                session_list_->setCurrentItem(it);
-                current = it;
-            }
-        }
-        if (current) {
-            session_list_->scrollToItem(current, QAbstractItemView::EnsureVisible);
-        }
-    });
-    // VM errors surface as a chat bubble (VM handles rendering); also flash
-    // the phase label so failures are visible even when scrolled away.
-    error_sub_ = vm_->error_occurred.connect([this](const std::string&) {
+
+    // ── Reactive bindings into the module VMs ──────────────────────────────
+    // Sidebar projection: refresh whenever the sessions module changes.
+    session_proj_sub_ = sessions_vm_->sessions.observe(
+        [this](const std::vector<agent::SessionMeta>&, const std::vector<agent::SessionMeta>&) {
+            refresh_session_list();
+        });
+    refresh_session_list();
+
+    // VM errors surface as a chat bubble + flash the phase label.
+    error_sub_ = chat_vm_->error_occurred.connect([this](const std::string&) {
         QMetaObject::invokeMethod(this, [this] {
-            phase_label_->setText(QString::fromStdString(agent::i18n::str("phase_error")));
+            phase_label_->setText(QString::fromStdString(texts_->text("phase_error")));
         });
     });
 
-    auto busy_sub = vm_->busy.observe([this](bool b, bool) {
+    auto busy_sub = chat_vm_->busy.observe([this](bool b, bool) {
         QMetaObject::invokeMethod(this, [this, b] {
             send_btn_->setEnabled(!b);
             input_->setEnabled(!b);
             send_btn_->setText(b ? QStringLiteral("⏹") : QStringLiteral("↑"));
-            send_btn_->setToolTip(b ? QString::fromStdString(agent::i18n::str("stop"))
-                                 : QString::fromStdString(agent::i18n::str("send")));
+            send_btn_->setToolTip(b ? QString::fromStdString(texts_->text("stop"))
+                                    : QString::fromStdString(texts_->text("send")));
         });
     });
-    auto phase_sub = vm_->phase_text.observe([this](const std::string& p, const std::string&) {
-        QMetaObject::invokeMethod(this, [this, p] {
-            phase_label_->setText(QString::fromStdString(p));
+    auto phase_sub = chat_vm_->phase_text.observe(
+        [this](const std::string& p, const std::string&) {
+            QMetaObject::invokeMethod(this, [this, p] {
+                phase_label_->setText(QString::fromStdString(p));
+            });
         });
-    });
     (void)busy_sub; (void)phase_sub;
 
-    // Stop button → send button reused as toggle
+    // Todo panel projection.
+    todo_sub_ = todo_vm_->changed.connect([this] {
+        QMetaObject::invokeMethod(this, &MainWindow::refresh_todo, Qt::QueuedConnection);
+    });
+    refresh_todo();
+
+    // Settings saved → restyle theme + language immediately.
+    settings_sub_ = settings_vm_->settings_saved.connect([this] {
+        QMetaObject::invokeMethod(this, [this] {
+            apply_theme();
+            apply_language();
+        });
+    });
+
+    // Send button doubles as stop while busy.
     connect(send_btn_, &QPushButton::clicked, this, [this] {
-        if (vm_->busy.get()) vm_->stop();
+        if (chat_vm_->busy.get()) chat_vm_->stop();
     });
 
     auto* chat_model = qobject_cast<QAbstractListModel*>(chat_list_->model());
@@ -554,11 +548,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     // Everything is constructed — restyle now that all widgets exist.
     apply_theme();
-
-    // Sync initial workspace level (0/1/2) → env + label.
     set_workspace_level(ws_level_);
-
-    // Refresh labels from the i18n table, and keep them fresh on switch.
     apply_language();
     lang_sub_ = agent::i18n::on_language_changed([this](const std::string&) {
         QMetaObject::invokeMethod(this, &MainWindow::apply_language,
@@ -566,29 +556,44 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     });
 }
 
+void MainWindow::refresh_session_list() {
+    session_list_->clear();
+    const auto& sess = sessions_vm_->sessions.get();
+    QListWidgetItem* current = nullptr;
+    for (const auto& s : sess) {
+        auto* it = new QListWidgetItem(QString::fromStdString(s.title), session_list_);
+        it->setData(Qt::UserRole, QString::fromStdString(s.id));
+        if (s.id == sessions_vm_->current_id.get()) {
+            session_list_->setCurrentItem(it);
+            current = it;
+        }
+    }
+    if (current) {
+        session_list_->scrollToItem(current, QAbstractItemView::EnsureVisible);
+    }
+}
+
 void MainWindow::on_send() {
-    if (vm_->busy.get()) return;
+    if (chat_vm_->busy.get()) return;
     const QString text = input_->toPlainText().trimmed();
     if (text.isEmpty()) return;
     input_->clear();
-    vm_->send(text.toStdString());
+    chat_vm_->send(text.toStdString());
 }
 
 void MainWindow::on_stop() {
-    vm_->stop();
+    chat_vm_->stop();
 }
 
 void MainWindow::on_new_chat() {
-    vm_->new_session();   // creates + switches; sessionChanged refreshes sidebar
+    sessions_vm_->new_session();   // store emits session_changed → chat reloads
     phase_label_->setText(QStringLiteral(""));
 }
 
 void MainWindow::on_attach_file() {
-    // Pick a single file and reference it as an inline @mention so the
-    // agent (and tools that accept paths) can act on it.
     const QString path = QFileDialog::getOpenFileName(
-        this, QString::fromStdString(agent::i18n::str("attach_dialog_title")), QString(),
-        QString::fromStdString(agent::i18n::str("attach_all_files")));
+        this, QString::fromStdString(texts_->text("attach_dialog_title")), QString(),
+        QString::fromStdString(texts_->text("attach_all_files")));
     if (path.isEmpty()) return;
     QString cur = input_->toPlainText();
     if (!cur.isEmpty() && !cur.endsWith('\n')) cur += '\n';
@@ -598,13 +603,10 @@ void MainWindow::on_attach_file() {
 }
 
 void MainWindow::on_workspace_mode_select() {
-    // Pop a 3-item menu matching DeepSeek's harness UX. The chosen
-    // level is written to ARIA_WORKSPACE_WRITE (0/1/2) — tool
-    // implementations and the approval gate both read it.
     QMenu menu(this);
-    auto* ro  = menu.addAction(QString::fromStdString(agent::i18n::str("ws_read_only")));
-    auto* wr  = menu.addAction(QString::fromStdString(agent::i18n::str("ws_workspace_write")));
-    auto* all = menu.addAction(QString::fromStdString(agent::i18n::str("ws_full_access")));
+    auto* ro  = menu.addAction(QString::fromStdString(texts_->text("ws_read_only")));
+    auto* wr  = menu.addAction(QString::fromStdString(texts_->text("ws_workspace_write")));
+    auto* all = menu.addAction(QString::fromStdString(texts_->text("ws_full_access")));
     ro ->setData(0);
     wr ->setData(1);
     all->setData(2);
@@ -622,39 +624,37 @@ void MainWindow::on_workspace_mode_select() {
 void MainWindow::set_workspace_level(int level) {
     ws_level_ = (level < 0 || level > 2) ? 1 : level;
     switch (ws_level_) {
-        case 0: tool_btn_->setText(QString::fromStdString(agent::i18n::str("ws_read_only")));         break;
-        case 1: tool_btn_->setText(QString::fromStdString(agent::i18n::str("ws_workspace_write")));   break;
-        case 2: tool_btn_->setText(QString::fromStdString(agent::i18n::str("ws_full_access")));       break;
+        case 0: tool_btn_->setText(QString::fromStdString(texts_->text("ws_read_only")));         break;
+        case 1: tool_btn_->setText(QString::fromStdString(texts_->text("ws_workspace_write")));   break;
+        case 2: tool_btn_->setText(QString::fromStdString(texts_->text("ws_full_access")));       break;
     }
     char buf[2] = {char('0' + ws_level_), 0};
     qputenv("ARIA_WORKSPACE_WRITE", buf);
 }
 
 void MainWindow::apply_language() {
-    setWindowTitle(QString::fromStdString(agent::i18n::str("window_title")));
-    new_chat_btn_->setText(QString::fromStdString(agent::i18n::str("new_chat")));
-    settings_btn_->setText(QString::fromStdString(agent::i18n::str("settings")));
-    traj_btn_->setText(QString::fromStdString(agent::i18n::str("trajectory")));
-    todo_btn_->setText(QString::fromStdString(agent::i18n::str("todo")));
-    model_label_->setText(QString::fromStdString(agent::i18n::str("app_subtitle")));
-    input_->setPlaceholderText(QString::fromStdString(agent::i18n::str("input_placeholder")));
-    plus_btn_->setToolTip(QString::fromStdString(agent::i18n::str("attach_tooltip")));
-    tool_btn_->setToolTip(QString::fromStdString(agent::i18n::str("ws_tooltip")));
+    setWindowTitle(QString::fromStdString(texts_->text("window_title")));
+    new_chat_btn_->setText(QString::fromStdString(texts_->text("new_chat")));
+    settings_btn_->setText(QString::fromStdString(texts_->text("settings")));
+    traj_btn_->setText(QString::fromStdString(texts_->text("trajectory")));
+    todo_btn_->setText(QString::fromStdString(texts_->text("todo")));
+    model_label_->setText(QString::fromStdString(texts_->text("app_subtitle")));
+    input_->setPlaceholderText(QString::fromStdString(texts_->text("input_placeholder")));
+    plus_btn_->setToolTip(QString::fromStdString(texts_->text("attach_tooltip")));
+    tool_btn_->setToolTip(QString::fromStdString(texts_->text("ws_tooltip")));
     if (auto* t = findChild<QLabel*>(QStringLiteral("panelTitle"))) {
-        t->setText(QString::fromStdString(agent::i18n::str("panel_title")));
+        t->setText(QString::fromStdString(texts_->text("panel_title")));
     }
-    close_panel_btn_->setToolTip(QString::fromStdString(agent::i18n::str("collapse_panel")));
-    // Workspace level label uses i18n too.
+    close_panel_btn_->setToolTip(QString::fromStdString(texts_->text("collapse_panel")));
     set_workspace_level(ws_level_);
 }
 
 void MainWindow::on_open_settings() {
-    SettingsDialog dlg(this, /*initialPage=*/1);   // land straight on Model
+    SettingsDialog dlg(settings_vm_, texts_, this, /*initialPage=*/1);
     dlg.exec();
 }
 
 void MainWindow::toggle_trajectory() {
-    // Clicking the active panel button again collapses the panel.
     if (right_wrap_->isVisible() && right_panel_->currentIndex() == 0) {
         right_wrap_->setVisible(false);
         trajectory_visible_ = false;
@@ -688,7 +688,7 @@ void MainWindow::toggle_todo() {
 
 void MainWindow::refresh_todo() {
     todo_list_->clear();
-    const auto items = agent::TodoStore::instance().snapshot();
+    const auto items = todo_vm_->items();
     for (const auto& it : items) {
         const char* mark = it.status == agent::TodoStatus::Done ? "✅"
                           : it.status == agent::TodoStatus::InProgress ? "🔄" : "⬜";
@@ -707,8 +707,8 @@ void MainWindow::show_message_menu(const QPoint& pos) {
 
     const QString text = idx.data(RoleText).toString();
     QMenu menu(this);
-    auto* good = menu.addAction(QString::fromStdString(agent::i18n::str("feedback_helpful")));
-    auto* bad  = menu.addAction(QString::fromStdString(agent::i18n::str("feedback_not_helpful")));
+    auto* good = menu.addAction(QString::fromStdString(texts_->text("feedback_helpful")));
+    auto* bad  = menu.addAction(QString::fromStdString(texts_->text("feedback_not_helpful")));
     QAction* chosen = menu.exec(chat_list_->mapToGlobal(pos));
     if (!chosen) return;
 

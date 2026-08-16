@@ -4,6 +4,7 @@
 #include "i18n/I18n.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -12,61 +13,56 @@
 
 #include <nlohmann/json.hpp>
 
-namespace agent {
-
 using json = nlohmann::json;
-namespace fs = std::filesystem;
 
 namespace {
+
 int64_t now_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                std::chrono::system_clock::now().time_since_epoch())
         .count();
 }
 
-std::string gen_id() {
-    static uint64_t counter = 0;
-    auto t = std::chrono::high_resolution_clock::now()
-                 .time_since_epoch()
-                 .count();
-    return "s" + std::to_string(t) + "_" + std::to_string(counter++);
+std::string home_dir() {
+    const char* h = std::getenv("USERPROFILE");
+    if (!h || !*h) h = std::getenv("HOME");
+    return h ? h : ".";
 }
 
-std::string home_dir() {
-    if (const char* h = std::getenv("USERPROFILE"); h && *h) return h;
-    if (const char* h = std::getenv("HOME"); h && *h) return h;
-    return ".";
-}
 } // namespace
 
-std::string SessionStore::base_dir() {
-    return (fs::path(home_dir()) / ".ariaagent" / "sessions").string();
-}
+namespace agent {
 
 SessionStore::SessionStore() {
-    std::error_code ec;
-    fs::create_directories(base_dir(), ec);
+    // Start with the most recent session, or create a fresh one.
+    auto existing = list();
+    if (!existing.empty()) {
+        switch_session(existing.front().id);
+    } else {
+        create_session();
+    }
+}
+
+std::string SessionStore::base_dir() {
+    return home_dir() + "/.ariaagent/sessions";
 }
 
 std::string SessionStore::path_for(const std::string& id) const {
-    // id is internally generated; still sanitise for safety.
-    std::string safe = id;
-    for (char& c : safe)
-        if (!std::isalnum(static_cast<unsigned char>(c)) && c != '_' && c != '-')
-            c = '_';
-    return (fs::path(base_dir()) / (safe + ".json")).string();
+    return base_dir() + "/" + id + ".json";
 }
 
 std::string SessionStore::create(const std::string& title) {
-    const std::string id = gen_id();
+    static std::atomic<int64_t> counter{0};
     const int64_t t = now_ms();
+    const std::string id = "s" + std::to_string(t) + "_" +
+                           std::to_string(counter.fetch_add(1));
+    (void)title;
     json doc;
     doc["id"] = id;
     doc["title"] = title.empty() ? agent::i18n::str("new_chat_default") : title;
     doc["created_at"] = t;
     doc["updated_at"] = t;
     doc["messages"] = json::array();
-
     std::ofstream f(path_for(id), std::ios::trunc);
     f << doc.dump(2);
     return id;
@@ -74,26 +70,25 @@ std::string SessionStore::create(const std::string& title) {
 
 std::vector<SessionMeta> SessionStore::list() const {
     std::vector<SessionMeta> out;
+    namespace fs = std::filesystem;
     std::error_code ec;
-    for (const auto& entry : fs::directory_iterator(base_dir(), ec)) {
-        if (!entry.is_regular_file()) continue;
-        if (entry.path().extension() != ".json") continue;
-        std::ifstream f(entry.path());
-        std::stringstream ss; ss << f.rdbuf();
+    if (!fs::is_directory(base_dir(), ec)) return out;
+    for (const auto& e : fs::directory_iterator(base_dir(), ec)) {
+        if (e.path().extension() != ".json") continue;
+        std::ifstream f(e.path());
+        if (!f.is_open()) continue;
         try {
-            json doc = json::parse(ss.str());
+            const auto doc = json::parse(f);
             SessionMeta m;
-            m.id = doc.value("id", entry.path().stem().string());
+            m.id = doc.value("id", e.path().stem().string());
             m.title = doc.value("title", agent::i18n::str("new_chat_default"));
             m.created_at = doc.value("created_at", static_cast<int64_t>(0));
             m.updated_at = doc.value("updated_at", static_cast<int64_t>(0));
             out.push_back(std::move(m));
-        } catch (...) { /* skip corrupt file */ }
+        } catch (const std::exception&) {
+            continue;
+        }
     }
-    // Stable ordering by creation time (newest first), like ChatGPT's
-    // sidebar. NOT updated_at: persisting the *previous* session during
-    // switch_session() bumps its updated_at to "now", which would reorder
-    // the list mid-click and make the selected row jump.
     std::sort(out.begin(), out.end(),
               [](const SessionMeta& a, const SessionMeta& b) {
                   return a.created_at > b.created_at;
@@ -104,59 +99,92 @@ std::vector<SessionMeta> SessionStore::list() const {
 MessageList SessionStore::load(const std::string& id) const {
     MessageList out;
     std::ifstream f(path_for(id));
-    if (!f) return out;
-    std::stringstream ss; ss << f.rdbuf();
+    if (!f.is_open()) return out;
     try {
-        json doc = json::parse(ss.str());
-        if (doc.contains("messages")) {
-            for (const auto& jm : doc["messages"])
-                out.push_back(ChatMessage::from_storage_json(jm));
+        const auto doc = json::parse(f);
+        for (const auto& e : doc.value("messages", json::array())) {
+            out.push_back(ChatMessage::from_storage_json(e));
         }
-    } catch (...) { /* return what we have */ }
-    return out;
-}
-
-void SessionStore::save(const std::string& id, const MessageList& messages,
-                        const std::string& title_hint) {
-    const int64_t t = now_ms();
-    json doc;
-    doc["id"] = id;
-    doc["title"] = title_hint.empty() ? agent::i18n::str("new_chat_default") : title_hint;
-    // Preserve the original creation time — the sidebar sorts by it.
-    // Overwriting it here made the previously-active session jump to the
-    // top of the list whenever the user switched (persist_current runs
-    // before the switch, so the session being left got a fresh timestamp).
-    {
-        std::ifstream in(path_for(id));
-        if (in) {
-            std::stringstream ss; ss << in.rdbuf();
-            try {
-                json old = json::parse(ss.str());
-                doc["created_at"] = old.value("created_at", t);
-            } catch (...) { doc["created_at"] = t; }
-        } else {
-            doc["created_at"] = t;
-        }
+    } catch (const std::exception&) {
+        out.clear();
     }
-    doc["updated_at"] = t;
-    doc["messages"] = json::array();
-    for (const auto& m : messages) doc["messages"].push_back(m.to_storage_json());
-
-    std::ofstream f(path_for(id), std::ios::trunc);
-    f << doc.dump(2);
+    return out;
 }
 
 void SessionStore::remove(const std::string& id) {
     std::error_code ec;
-    fs::remove(path_for(id), ec);
+    std::filesystem::remove(path_for(id), ec);
 }
 
-void SessionStore::clear_all() {
-    std::error_code ec;
-    for (const auto& entry : fs::directory_iterator(base_dir(), ec)) {
-        if (entry.is_regular_file() && entry.path().extension() == ".json")
-            fs::remove(entry.path(), ec);
+// ── Current-session state ───────────────────────────────────────────────────
+void SessionStore::create_session() {
+    current_id_ = create();
+    current_history_.clear();
+    session_changed.emit();
+}
+
+void SessionStore::switch_session(const std::string& id) {
+    if (id.empty() || id == current_id_) return;
+    persist_current();              // save the outgoing session first
+    current_id_ = id;
+    current_history_ = load(id);
+    session_changed.emit();
+}
+
+void SessionStore::delete_session(const std::string& id) {
+    remove(id);
+    if (id == current_id_) {
+        current_id_ = "";
+        current_history_.clear();
+        auto remaining = list();
+        if (!remaining.empty()) {
+            current_id_ = remaining.front().id;
+            current_history_ = load(current_id_);
+        } else {
+            current_id_ = create();
+            current_history_.clear();
+        }
     }
+    session_changed.emit();
+}
+
+void SessionStore::persist_current(const std::string& title_hint) {
+    if (current_id_.empty()) return;
+    const std::string t = title_hint.empty() ? derive_title() : title_hint;
+    const int64_t ts = now_ms();
+    json doc;
+    doc["id"] = current_id_;
+    doc["title"] = t.empty() ? agent::i18n::str("new_chat_default") : t;
+    // Preserve the original created_at (never overwrite — sorting key).
+    {
+        std::ifstream f(path_for(current_id_));
+        if (f.is_open()) {
+            try {
+                const auto old = json::parse(f);
+                doc["created_at"] = old.value("created_at", ts);
+            } catch (const std::exception&) {
+                doc["created_at"] = ts;
+            }
+        } else {
+            doc["created_at"] = ts;
+        }
+    }
+    doc["updated_at"] = ts;
+    doc["messages"] = json::array();
+    for (const auto& m : current_history_) doc["messages"].push_back(m.to_storage_json());
+    std::ofstream f(path_for(current_id_), std::ios::trunc);
+    f << doc.dump(2);
+}
+
+std::string SessionStore::derive_title() const {
+    for (const auto& m : current_history_) {
+        if (m.role == Role::User && !m.content.empty()) {
+            auto t = m.content;
+            if (t.size() > 24) t = t.substr(0, 24) + "…";
+            return t;
+        }
+    }
+    return {};
 }
 
 } // namespace agent

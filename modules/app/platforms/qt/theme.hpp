@@ -47,9 +47,9 @@ inline bool theme_is_light() {
     return QColor(bg).lightness() > 128;
 }
 
-inline Theme load_theme() {
-    QSettings s("AriaAgent", "AriaAgent");
-    const int t = s.value("theme", 2).toInt();   // 0=system, 1=light, 2=dark
+/// Resolve a palette from a theme index (0=system, 1=light, 2=dark).
+/// The SettingsVm owns the value; the view controller passes it here.
+inline Theme resolve_theme(int t) {
     if (t == 1) return kThemeLight;
     if (t == 0) {
         const QColor win = QApplication::palette().color(QPalette::Window);
