@@ -17,7 +17,16 @@ AgentEngine::AgentEngine(ToolRegistry registry, Config cfg,
                          std::unique_ptr<LlmClient> client)
     : registry_(std::move(registry)),
       cfg_(std::move(cfg)),
-      client_(client ? std::move(client) : create_llm_client()) {}
+      client_(std::move(client)) {}
+
+AgentEngine::~AgentEngine() = default;
+
+LlmClient& AgentEngine::client() {
+    if (!client_) {
+        client_ = create_llm_client();
+    }
+    return *client_;
+}
 
 std::string AgentEngine::run(const std::string& user_input,
                              const AgentCallbacks& cb) {
@@ -38,7 +47,7 @@ std::string AgentEngine::run(const std::string& user_input,
 
         if (cb.on_phase) cb.on_phase(AgentPhase::Streaming);
 
-        client_->complete_stream(messages, tools, [&](const StreamEvent& ev) {
+        client().complete_stream(messages, tools, [&](const StreamEvent& ev) {
             if (!ev.delta.empty()) {
                 assistant_text += ev.delta;
                 if (cb.on_text_delta) cb.on_text_delta(ev.delta);

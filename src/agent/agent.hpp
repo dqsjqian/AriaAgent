@@ -35,19 +35,26 @@ public:
             "you found."};
     };
 
-    // client: ownership transferred to the engine. If null, a default
-    // client is created from environment configuration.
+    // client: optional. When null (or empty), a default client is created
+    // lazily on first run() — so the UI can start without a valid API key
+    // and only surface the config error when the user actually sends.
     explicit AgentEngine(ToolRegistry registry, Config cfg,
                          std::unique_ptr<LlmClient> client = {});
+    ~AgentEngine();
 
     // Synchronous run: blocks the calling thread until done.
     // Returns final text reply. Throws std::runtime_error on API errors.
     std::string run(const std::string& user_input,
                     const AgentCallbacks& cb);
 
+    // Override the system prompt (e.g. from settings/env) for subsequent runs.
+    void set_system_prompt(std::string prompt) { cfg_.system_prompt = std::move(prompt); }
+
     const std::vector<ToolCallRecord>& tool_trace() const { return trace_; }
 
 private:
+    LlmClient& client();
+
     ToolRegistry          registry_;
     Config                cfg_;
     std::unique_ptr<LlmClient> client_;
