@@ -65,6 +65,40 @@ struct ChatMessage {
         }
         return j;
     }
+
+    // Full serialization for session persistence (keeps every field).
+    nlohmann::json to_storage_json() const {
+        nlohmann::json j;
+        j["role"] = to_string(role);
+        j["content"] = content;
+        j["tool_call_id"] = tool_call_id;
+        j["tool_result"] = tool_result;
+        j["is_streaming"] = is_streaming;
+        j["tool_calls"] = nlohmann::json::array();
+        for (const auto& tc : tool_calls) {
+            j["tool_calls"].push_back({{"id", tc.id}, {"name", tc.name}, {"args", tc.args}});
+        }
+        return j;
+    }
+
+    static ChatMessage from_storage_json(const nlohmann::json& j) {
+        ChatMessage m;
+        m.role = role_from_string(j.value("role", "user"));
+        m.content = j.value("content", "");
+        m.tool_call_id = j.value("tool_call_id", "");
+        m.tool_result = j.value("tool_result", "");
+        m.is_streaming = j.value("is_streaming", false);
+        if (j.contains("tool_calls")) {
+            for (const auto& tc : j["tool_calls"]) {
+                ToolCallInfo info;
+                info.id = tc.value("id", "");
+                info.name = tc.value("name", "");
+                info.args = tc.value("args", "");
+                m.tool_calls.push_back(std::move(info));
+            }
+        }
+        return m;
+    }
 };
 
 using MessageList = std::vector<ChatMessage>;
