@@ -1,13 +1,11 @@
-// AriaAgent — filesystem tools implementation.
+// AriaAgent — filesystem tools implementation (pure C++, no Qt).
 #include "agent/fs_tools.hpp"
-
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QTextStream>
 
 #include <algorithm>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
 
 namespace agent {
 
@@ -30,10 +28,16 @@ std::optional<json> ws_read_only_deny(const char* op) {
 
 // Refuse paths that escape the workspace (path traversal guard).
 bool in_workspace(const std::string& p, std::string* err) {
-    QFileInfo fi(QString::fromStdString(p));
-    const QString root = QDir::cleanPath(QString::fromStdString(kWorkspace));
-    const QString full = QDir::cleanPath(fi.absoluteFilePath());
-    if (!full.startsWith(root + "/") && full != root) {
+    std::error_code ec;
+    std::filesystem::path full = std::filesystem::absolute(p, ec);
+    if (ec) full = std::filesystem::path(p);
+    std::filesystem::path root = std::filesystem::weakly_canonical(kWorkspace, ec);
+    if (ec) root = std::filesystem::path(kWorkspace);
+    full = full.lexically_normal();
+
+    const std::string fs = full.string();
+    const std::string rs = root.string();
+    if (fs != rs && fs.rfind(rs + "/", 0) != 0 && fs.rfind(rs + "\\", 0) != 0) {
         if (err) *err = "path outside workspace root is not allowed: " + p;
         return false;
     }
@@ -46,14 +50,15 @@ json read_file_impl(const json& args, ToolContext&) {
     std::string err;
     if (!in_workspace(path, &err)) return json{{"error", err}};
 
-    QFile f(QString::fromStdString(path));
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return json{{"error", "cannot open file: " + path}};
-    const QString content = QTextStream(&f).readAll();
+    std::ifstream f(path, std::ios::binary);
+    if (!f) return json{{"error", "cannot open file: " + path}};
+    std::ostringstream ss;
+    ss << f.rdbuf();
+    const std::string content = ss.str();
     // Cap at 512KB to avoid flooding the context window.
     if (content.size() > 512 * 1024)
         return json{{"error", "file too large (over 512KB), use a shell tool instead"}};
-    return json{{"content", content.toStdString()}, {"size", content.size()}};
+    return json{{"content", content}, {"size", content.size()}};
 }
 
 json write_file_impl(const json& args, ToolContext&) {
@@ -64,10 +69,9 @@ json write_file_impl(const json& args, ToolContext&) {
     std::string err;
     if (!in_workspace(path, &err)) return json{{"error", err}};
 
-    QFile f(QString::fromStdString(path));
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return json{{"error", "cannot write file: " + path}};
-    f.write(content.data(), static_cast<qint64>(content.size()));
+    std::ofstream f(path, std::ios::binary | std::ios::trunc);
+    if (!f) return json{{"error", "cannot write file: " + path}};
+    f.write(content.data(), static_cast<std::streamsize>(content.size()));
     f.close();
     return json{{"written", true}, {"bytes", content.size()}, {"path", path}};
 }
@@ -82,21 +86,22 @@ json edit_file_impl(const json& args, ToolContext&) {
     std::string err;
     if (!in_workspace(path, &err)) return json{{"error", err}};
 
-    QFile f(QString::fromStdString(path));
-    if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        return json{{"error", "cannot open file: " + path}};
-    const QString content = QTextStream(&f).readAll();
-    f.close();
+    std::ifstream in(path, std::ios::binary);
+    if (!in) return json{{"error", "cannot open file: " + path}};
+    std::ostringstream ss;
+    ss << in.rdbuf();
+    in.close();
+    std::string content = ss.str();
 
-    const qsizetype idx = content.indexOf(QString::fromStdString(old_text));
-    if (idx < 0)
+    const auto idx = content.find(old_text);
+    if (idx == std::string::npos)
         return json{{"error", "old text not found in file"}};
-    QString updated = content;
-    updated.replace(idx, static_cast<qsizetype>(old_text.size()), QString::fromStdString(new_text));
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
-        return json{{"error", "cannot write file: " + path}};
-    f.write(updated.toUtf8());
-    f.close();
+    content.replace(idx, old_text.size(), new_text);
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    if (!out) return json{{"error", "cannot write file: " + path}};
+    out.write(content.data(), static_cast<std::streamsize>(content.size()));
+    out.close();
     return json{{"edited", true}, {"replaced", 1}, {"path", path}};
 }
 

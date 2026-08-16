@@ -1,21 +1,30 @@
-// AriaAgent — ChatViewModel: bridges the agent engine to aria reactive state.
+// AriaAgent — ChatViewModel: bridges the agent engine to reactive state.
 //
-// Every piece of UI-visible state is an aria Property / ObservableList so
-// the Qt view binds declaratively. The engine runs on a detached worker
-// thread; callbacks are marshalled to the UI thread via QMetaObject::invoke.
+// Pure C++ / UI-framework agnostic (follows the AiTools Workbench pattern:
+// VMs live in `core`, platform shells in `platform/qt|ios|android`).
+//
+//   - All state is aria Property / ObservableList / TypedSignal — any view
+//     (Qt, UIKit, Android Views, Web) binds declaratively to the same VM.
+//   - No QObject, no QString, no QMessageBox: the approval prompt is an
+//     injected callback the VIEW provides, so mobile shells can reuse the
+//     exact same VM.
+//   - Cross-thread marshalling uses aria::runtime::main_dispatcher() (the
+//     Qt shell installs a QtDispatcher; iOS/Android shells install theirs).
 //
 // Multi-session: this VM owns the active conversation log (MessageList) and
 // persists it through SessionStore on every completed turn. Switching
 // sessions reloads the log; the engine replays it for multi-turn context.
 #pragma once
 
-#include <memory>
-#include <thread>
 #include <atomic>
-
-#include <QObject>
+#include <functional>
+#include <memory>
+#include <string>
+#include <thread>
 
 #include <aria/aria.hpp>
+#include <aria/binding/view_model.hpp>
+#include <aria/detail/typed_signal.hpp>
 
 #include "agent/agent.hpp"
 #include "agent/model.hpp"
@@ -39,41 +48,45 @@ struct UiToolCall {
     bool        ok{true};
 };
 
-// ── ViewModel ───────────────────────────────────────────────────────────────
-class ChatViewModel : public QObject {
-    Q_OBJECT
+// ── ViewModel (framework-agnostic) ──────────────────────────────────────────
+class ChatViewModel : public aria::binding::ViewModel {
 public:
-    explicit ChatViewModel(agent::ToolRegistry tools, QObject* parent = nullptr);
+    explicit ChatViewModel(agent::ToolRegistry tools);
     ~ChatViewModel() override;
 
-    // aria reactive surface (bound by the view)
+    // aria reactive surface (bound by any view)
     aria::ObservableList<UiMessage>  messages;
     aria::ObservableList<UiToolCall> tool_trace;
     aria::Property<std::string>      streaming_text;
     aria::Property<std::string>      phase_text;
     aria::Property<bool>             busy;
 
+    // ── Signals (multicast; view subscribes) ──────────────────────────────
+    aria::detail::TypedSignal<>             finished;
+    aria::detail::TypedSignal<std::string>  error_occurred;
+    aria::detail::TypedSignal<>             session_changed;
+
     // ── Session management ─────────────────────────────────────────────────
     std::vector<agent::SessionMeta> sessions() const { return store_.list(); }
     std::string current_session_id() const { return current_id_; }
-    QString current_title() const;
+    std::string current_title() const;
 
     void new_session();                       // create + switch to a fresh one
-    void switch_session(const QString& id);   // save current, load target
-    void delete_session(const QString& id);   // remove file, switch if needed
+    void switch_session(const std::string& id);   // save current, load target
+    void delete_session(const std::string& id);   // remove file, switch if needed
 
     // called by the view (command target)
-    void send(const QString& text);
+    void send(const std::string& text);
     void stop();
 
-Q_SIGNALS:
-    void finished();
-    void errorOccurred(const QString& err);
-    void sessionChanged();       // current session id/title changed
+    // Approval hook — the VIEW injects a UI prompt (QMessageBox / UIAlert /
+    // Android dialog). VM never shows UI itself. Returning true allows the
+    // dangerous tool; false denies (fail-closed).
+    std::function<bool(const std::string& tool, const std::string& args)> approval_ui;
 
 private:
     void finalize_success();
-    void finalize_error(const QString& err);
+    void finalize_error(const std::string& err);
     void maybe_compact();
     void push_user(const std::string& text);
     void push_assistant(const std::string& text);

@@ -1,15 +1,15 @@
-// AriaAgent — shell / subprocess tools implementation.
+// AriaAgent — shell / subprocess tools implementation (pure C++, no Qt).
 #include "agent/shell_tools.hpp"
 
-#include <QCoreApplication>
-#include <QDir>
-#include <QFile>
-#include <QFileInfo>
-#include <QProcess>
-#include <QTemporaryFile>
-#include <QTextStream>
+#include "agent/subprocess.hpp"
 
+#include <algorithm>
+#include <chrono>
 #include <cstdlib>
+#include <filesystem>
+#include <map>
+#include <mutex>
+#include <optional>
 
 namespace agent {
 
@@ -30,10 +30,10 @@ std::optional<json> ws_read_only_deny(const char* op) {
     return std::nullopt;
 }
 
-// ── Background process registry (handle → QProcess*) ───────────────────────
+// ── Background process registry (handle → BgProc*) ─────────────────────────
 struct ProcRegistry {
     std::mutex mu;
-    std::map<int, QProcess*> procs;
+    std::map<int, BgProc*> procs;
     int next_handle{1};
 };
 ProcRegistry& procs() {
@@ -47,27 +47,13 @@ json run_command_impl(const json& args, ToolContext&) {
     const int timeout_ms = args.value("timeout_ms", 30000);
     if (cmd.empty()) return json{{"error", "command is required"}};
 
-    QProcess p;
-    p.setProcessChannelMode(QProcess::MergedChannels);
-    auto t0 = std::chrono::steady_clock::now();
-    p.start(QString::fromStdString(cmd));
-    if (!p.waitForStarted(5000))
-        return json{{"error", "failed to start command"}};
-    if (!p.waitForFinished(timeout_ms)) {
-        p.kill();
-        p.waitForFinished(3000);
-        auto t1 = std::chrono::steady_clock::now();
-        return json{
-            {"exit_code", -1},
-            {"timed_out", true},
-            {"output", p.readAll().toStdString()},
-            {"duration_ms", std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()},
-        };
-    }
-    auto t1 = std::chrono::steady_clock::now();
+    const auto t0 = std::chrono::steady_clock::now();
+    const ProcResult r = run_sync(cmd, timeout_ms);
+    const auto t1 = std::chrono::steady_clock::now();
     return json{
-        {"exit_code", p.exitCode()},
-        {"output", p.readAll().toStdString()},
+        {"exit_code", r.exit_code},
+        {"timed_out", r.timed_out},
+        {"output", r.output},
         {"duration_ms", std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count()},
     };
 }
@@ -77,13 +63,8 @@ json run_background_impl(const json& args, ToolContext&) {
     const std::string cmd = args.value("command", "");
     if (cmd.empty()) return json{{"error", "command is required"}};
 
-    auto* p = new QProcess;
-    p->setProcessChannelMode(QProcess::MergedChannels);
-    p->start(QString::fromStdString(cmd));
-    if (!p->waitForStarted(5000)) {
-        delete p;
-        return json{{"error", "failed to start command"}};
-    }
+    BgProc* p = bg_start(cmd);
+    if (!p) return json{{"error", "failed to start command"}};
     std::lock_guard<std::mutex> lk(procs().mu);
     const int handle = procs().next_handle++;
     procs().procs[handle] = p;
@@ -96,12 +77,11 @@ json read_output_impl(const json& args, ToolContext&) {
     auto it = procs().procs.find(handle);
     if (it == procs().procs.end())
         return json{{"error", "unknown process handle"}};
-    QProcess* p = it->second;
-    const QByteArray out = p->readAll();
+    BgProc* p = it->second;
     return json{
-        {"output", out.toStdString()},
-        {"running", p->state() == QProcess::Running},
-        {"exit_code", p->state() == QProcess::NotRunning ? p->exitCode() : 0},
+        {"output", bg_read(p)},
+        {"running", bg_running(p)},
+        {"exit_code", bg_running(p) ? 0 : bg_exit_code(p)},
     };
 }
 
@@ -112,27 +92,34 @@ json kill_process_impl(const json& args, ToolContext&) {
     auto it = procs().procs.find(handle);
     if (it == procs().procs.end())
         return json{{"error", "unknown process handle"}};
-    QProcess* p = it->second;
-    if (p->state() == QProcess::Running) p->kill();
-    p->waitForFinished(3000);
-    p->deleteLater();
+    BgProc* p = it->second;
+    bg_kill(p);
+    bg_close(p);
     procs().procs.erase(it);
     return json{{"killed", true}};
 }
 
 json list_directory_impl(const json& args, ToolContext&) {
     const std::string path = args.value("path", kWorkspace);
-    QDir dir(QString::fromStdString(path));
-    if (!dir.exists()) return json{{"error", "directory does not exist: " + path}};
+    std::error_code ec;
+    std::filesystem::directory_iterator it(path, ec);
+    if (ec) return json{{"error", "directory does not exist: " + path}};
 
     json items = json::array();
-    const auto entries = dir.entryInfoList(QDir::NoDotAndDotDot | QDir::AllEntries,
-                                           QDir::Name | QDir::DirsFirst);
+    std::vector<std::filesystem::directory_entry> entries;
+    for (const auto& e : it) entries.push_back(e);
+    std::sort(entries.begin(), entries.end(),
+              [](const auto& a, const auto& b) {
+                  bool ad = a.is_directory(), bd = b.is_directory();
+                  if (ad != bd) return ad;             // dirs first
+                  return a.path().filename().string() < b.path().filename().string();
+              });
     for (const auto& e : entries) {
+        bool is_dir = e.is_directory();
         items.push_back({
-            {"name", e.fileName().toStdString()},
-            {"type", e.isDir() ? "dir" : "file"},
-            {"size", e.isFile() ? e.size() : 0},
+            {"name", e.path().filename().string()},
+            {"type", is_dir ? "dir" : "file"},
+            {"size", is_dir ? 0 : e.file_size()},
         });
     }
     return json{{"items", items}, {"count", items.size()}};

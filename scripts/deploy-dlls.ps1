@@ -11,7 +11,6 @@
 param(
     [string]$BuildDir = "build\flavors\debug"
 )
-
 $ErrorActionPreference = "Stop"
 
 # Accept a repo-root-relative or absolute path.
