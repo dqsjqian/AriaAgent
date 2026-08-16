@@ -93,6 +93,18 @@ std::string AgentEngine::run(MessageList& messages, const AgentCallbacks& cb) {
                 const auto& tc = assistant_msg.tool_calls[i];
                 auto t0 = std::chrono::steady_clock::now();
                 std::string result_text;
+
+                // Approval gate: dangerous tools must be confirmed first.
+                if (registry_.requires_approval(tc.name) && cb.on_approval) {
+                    if (!cb.on_approval(tc.name, tc.args)) {
+                        auto t1 = std::chrono::steady_clock::now();
+                        durations[i] = std::chrono::duration_cast<std::chrono::microseconds>(t1 - t0).count();
+                        results[i] = "error: user denied approval for tool '" + tc.name + "'";
+                        succeeded[i] = false;
+                        return;
+                    }
+                }
+
                 try {
                     json args = json::parse(tc.args.empty() ? "{}" : tc.args);
                     auto r = registry_.run(tc.name, args, ctx);

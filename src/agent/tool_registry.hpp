@@ -29,6 +29,9 @@ public:
     // Whether a tool may run concurrently with others (unknown → false).
     bool is_concurrency_safe(const std::string& name) const;
 
+    // Whether a tool needs user approval before execution (unknown → false).
+    bool requires_approval(const std::string& name) const;
+
 private:
     std::vector<Tool> tools_;
     std::map<std::string, size_t> index_;

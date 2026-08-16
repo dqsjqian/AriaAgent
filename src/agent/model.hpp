@@ -148,6 +148,9 @@ struct Tool {
     // true = safe to run concurrently with other tools (e.g. stateless
     // queries); false = run exclusively (serial barrier, e.g. file writes).
     bool                        concurrency_safe{true};
+    // true = the UI must confirm before execution (dangerous operations:
+    // file writes, shell commands). Fail-closed when denied.
+    bool                        requires_approval{false};
     // Executes with parsed JSON args; returns result JSON.
     nlohmann::json              (*fn)(const nlohmann::json& args, ToolContext& ctx) = nullptr;
 };

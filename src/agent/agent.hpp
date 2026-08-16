@@ -20,6 +20,11 @@ struct AgentCallbacks {
     std::function<void(const std::string& delta)>    on_text_delta;
     std::function<void(const ToolCallRecord& rec)>   on_tool_call;
     std::function<void(const std::string& err)>      on_error;
+    // Approval gate for dangerous tools (requires_approval). Return true to
+    // allow, false to deny (fail-closed). Called on the engine thread —
+    // implementations must marshal to the UI and block for the answer.
+    std::function<bool(const std::string& tool_name,
+                       const std::string& args_summary)> on_approval;
 };
 
 // The engine is intentionally UI- and provider-agnostic: it talks to an
