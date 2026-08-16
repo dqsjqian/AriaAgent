@@ -43,6 +43,11 @@ public:
     // Refresh all user-facing labels from AppText (startup + language change).
     void apply_language();
 
+protected:
+    // Enter/Ctrl+Enter send handling for the chat input box (P2: enter_behavior).
+    bool eventFilter(QObject* obj, QEvent* ev) override;
+    void showEvent(QShowEvent* ev) override;
+
 private:
     void on_send();
     void on_stop();

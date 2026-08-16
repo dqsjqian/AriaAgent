@@ -40,3 +40,10 @@ target_link_libraries(ariaagent_core PUBLIC
 if(WIN32)
     target_link_libraries(ariaagent_core PUBLIC ws2_32 crypt32)
 endif()
+if(APPLE)
+    # cpp-httplib's macOS TLS path (load_system_certs) uses the Security
+    # framework; without it, linking fails with undefined Sec* symbols.
+    target_link_libraries(ariaagent_core PUBLIC
+        "-framework Security"
+        "-framework CoreFoundation")
+endif()

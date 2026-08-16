@@ -78,17 +78,25 @@ AriaAgent/
 ├── core/                    # ★ Pure C++, zero Qt (reused verbatim on mobile)
 │   ├── agent/               #   engine: agent loop / llm_client / tools /
 │   │                        #   session_store / json_schema / subprocess
-│   └── viewmodel/           #   ChatViewModel: aria::binding::ViewModel +
-│                            #   Property/ObservableList/TypedSignal
-│                            #   (no QObject, no QString, no UI dialogs)
-├── platform/                # ★ Shells (the only place allowed to touch a UI kit)
-│   ├── qt/                  #   Qt6 desktop: main.cpp (QtDispatcher) /
-│   │                        #   main_window / settings_dialog / markdown_render
-│   └── (future) ios/ android/  # same core linked verbatim; new view shells
+│   └── module_api/          #   BaseVm / IModule / ModuleRegistry / ServiceHub
+├── modules/                 # ★ feature modules (plugin pattern, VM per module)
+│   ├── chat/                #   chat module (engine bridge + ChatViewModel)
+│   ├── sessions/            #   session list (sidebar projection)
+│   ├── settings/            #   settings + Qt settings dialog
+│   ├── todo/  trajectory/   #   todos / tool-call trajectory
+│   └── app/                 #   app shell
+│       ├── viewmodel/       #   AppText (UI string service)
+│       └── platforms/qt/    #   ★ Shell: main.cpp (QtDispatcher) /
+│                            #     main_window / markdown_render
 ├── third_party/aria         # vendored framework (submodule)
-├── core/CMakeLists.txt      # ariaagent_core + ariaagent_viewmodel
-└── platform/qt/CMakeLists.txt  # aria_agent executable
+├── core/CMakeLists.txt      # ariaagent_core
+└── modules/app/platforms/qt/CMakeLists.txt  # aria_agent executable
 ```
+
+> Note: the legacy `platform/` directory is dead code; the real Qt shell lives
+> in `modules/app/platforms/qt/` (see the top-level CMakeLists.txt). Future
+> iOS/Android shells will live under `modules/app/platforms/` and link the same
+> core verbatim.
 **Threading**: the VM marshals back to the UI thread via
 `aria::runtime::main_dispatcher()` — the Qt shell installs a `QtDispatcher`,
 mobile shells install their own; the VM never knows which platform it is on.
@@ -101,10 +109,22 @@ a dialog itself.
 
 ### Prerequisites
 - **Windows**: MSYS2 UCRT64 (GCC 13+), Qt6, OpenSSL, CMake ≥ 3.20
-- Initialize the Aria submodule first:
+- **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.20
+- Initialize the Aria submodule first (do **not** use `--recursive` — the
+  vendored openssl submodule carries 10 test-only submodules that take forever
+  to clone):
 
 ```bash
-git submodule update --init --recursive
+git submodule update --init
+```
+
+### Build (macOS)
+
+```bash
+cmake -S . -B build/flavors/debug -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+cmake --build build/flavors/debug -j 8
+./build/flavors/debug/bin/aria_agent
 ```
 
 ### Build (Windows)
