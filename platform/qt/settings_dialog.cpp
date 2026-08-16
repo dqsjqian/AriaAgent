@@ -118,7 +118,7 @@ void SettingsDialog::build_general_page(QStackedWidget* stack) {
 
     lang_combo_ = new QComboBox(card);
     lang_combo_->addItem(QString::fromStdString(agent::i18n::str("lang_zh")), QStringLiteral("zh-CN"));
-    lang_combo_->addItem(QStringLiteral("English"),   QStringLiteral("en"));
+    lang_combo_->addItem(QString::fromStdString(agent::i18n::str("lang_en")),   QStringLiteral("en"));
     {
         QSettings s(kSettingsOrg, kSettingsApp);
         const QString cur = s.value("language", "zh-CN").toString();
@@ -171,9 +171,7 @@ void SettingsDialog::build_model_page(QStackedWidget* stack) {
     form->addRow(QString::fromStdString(agent::i18n::str("model_api_key")), api_key_edit_);
     form->addRow(QString::fromStdString(agent::i18n::str("model_name")), model_edit_);
 
-    auto* hint = new QLabel(QStringLiteral(
-        "任何 OpenAI 兼容端点皆可: DeepSeek · OpenAI · Kimi · Qwen · GLM …\n"
-        "换厂商只需改 API 地址与模型名,无需重新编译。"), card);
+    auto* hint = new QLabel(QString::fromStdString(agent::i18n::str("model_hint")), card);
     hint->setWordWrap(true);
     hint->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
     form->addRow(QString(), hint);
@@ -205,9 +203,7 @@ void SettingsDialog::build_plugins_page(QStackedWidget* stack) {
     make_plugin(QString::fromStdString(agent::i18n::str("plugins_time")),
                 QString::fromStdString(agent::i18n::str("plugins_time_desc")), true);
 
-    auto* hint = new QLabel(QStringLiteral(
-        "内置工具在 src/agent/tool_registry.cpp 注册,\n"
-        "新增工具只需实现 Tool{name, desc, schema, fn} 并 register_tool。"), card);
+    auto* hint = new QLabel(QString::fromStdString(agent::i18n::str("plugins_hint")), card);
     hint->setWordWrap(true);
     hint->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
     v->addWidget(hint);
@@ -234,11 +230,7 @@ void SettingsDialog::build_presets_page(QStackedWidget* stack) {
     }
     v->addWidget(preset_combo_);
 
-    auto* hint = new QLabel(QStringLiteral(
-        "预设会调整 Agent 的系统提示词与行为倾向:\n"
-        "· 标准 —— 保持默认提示词\n"
-        "· 创造 —— 注入「发散思考、勇于联想」的引导\n"
-        "· 极简 —— 使用精简提示词,减少 token 开销"), card);
+    auto* hint = new QLabel(QString::fromStdString(agent::i18n::str("presets_hint")), card);
     hint->setWordWrap(true);
     hint->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
     v->addWidget(hint);

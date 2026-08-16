@@ -91,7 +91,7 @@
     <string name="plugins_calculator_desc">Arithmetic / power, answers math questions.</string>
     <string name="plugins_time">Current time (current_time)</string>
     <string name="plugins_time_desc">Returns the current local date and time.</string>
-    <string name="plugins_hint">Built-in tools register in core/agent/tool_registry.cpp.\nAdd a tool by implementing Tool{{name, desc, schema, fn}} and register_tool.</string>
+    <string name="plugins_hint">Built-in tools register in core/agent/tool_registry.cpp.\nAdd a tool by implementing Tool{name, desc, schema, fn} and register_tool.</string>
 
     <!-- presets page -->
     <string name="preset_standard">Standard — balanced speed and capability, for daily chat</string>
