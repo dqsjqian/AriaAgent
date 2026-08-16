@@ -11,6 +11,8 @@
 #include <QApplication>
 #include <QAbstractTextDocumentLayout>
 #include <QFrame>
+#include <QFileDialog>
+#include <QFrame>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QListView>
@@ -338,15 +340,21 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     input_->setFixedHeight(80);
     input_->setAcceptRichText(false);
 
-    auto* plus_btn  = new QPushButton(QStringLiteral("+"), this);
-    auto* tool_btn  = new QPushButton(QStringLiteral("🛠 Workspace Write"), this);
-    plus_btn->setObjectName(QStringLiteral("primary"));
-    plus_btn->setFixedSize(30, 30);
-    plus_btn->setToolTip(QStringLiteral("添加工具 / 上传"));
-    tool_btn->setCursor(Qt::PointingHandCursor);
+    plus_btn_ = new QPushButton(QStringLiteral("+"), this);
+    plus_btn_->setObjectName(QStringLiteral("primary"));
+    plus_btn_->setFixedSize(30, 30);
+    plus_btn_->setToolTip(QStringLiteral("附件 / 工具"));
+    plus_btn_->setCursor(Qt::PointingHandCursor);
 
-    auto* model_pick = new QPushButton(QStringLiteral("DeepSeek-V4-Flash ▾"), this);
-    model_pick->setCursor(Qt::PointingHandCursor);
+    tool_btn_ = new QPushButton(QStringLiteral("🛠 Workspace Write"), this);
+    tool_btn_->setCheckable(true);
+    tool_btn_->setChecked(false);   // default: Read-Only (safe)
+    tool_btn_->setCursor(Qt::PointingHandCursor);
+    tool_btn_->setToolTip(QStringLiteral("切换文件写入权限"));
+
+    model_pick_ = new QPushButton(QStringLiteral("DeepSeek-V4-Flash ▾"), this);
+    model_pick_->setCursor(Qt::PointingHandCursor);
+    model_pick_->setToolTip(QStringLiteral("点击切换模型 / 配置"));
 
     send_btn_ = new QPushButton(QStringLiteral("↑"), this);
     send_btn_->setObjectName(QStringLiteral("sendCircle"));
@@ -355,15 +363,15 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     auto* input_tools = new QHBoxLayout;
     input_tools->setSpacing(8);
-    input_tools->addWidget(plus_btn);
-    input_tools->addWidget(tool_btn);
+    input_tools->addWidget(plus_btn_);
+    input_tools->addWidget(tool_btn_);
     input_tools->addStretch();
 
     auto* input_actions = new QHBoxLayout;
     input_actions->setSpacing(10);
     input_actions->addLayout(input_tools);
     input_actions->addStretch();
-    input_actions->addWidget(model_pick);
+    input_actions->addWidget(model_pick_);
     input_actions->addWidget(send_btn_);
 
     auto* input_box = new QVBoxLayout;
@@ -424,6 +432,10 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     connect(new_chat_btn_, &QPushButton::clicked, this, &MainWindow::on_new_chat);
     connect(traj_btn_, &QPushButton::clicked, this, &MainWindow::toggle_trajectory);
     connect(todo_btn_, &QPushButton::clicked, this, &MainWindow::toggle_todo);
+    connect(plus_btn_, &QPushButton::clicked, this, &MainWindow::on_attach_file);
+    connect(tool_btn_, &QPushButton::toggled, this, &MainWindow::on_workspace_mode_toggle);
+    connect(model_pick_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
+    connect(settings_btn_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
 
     // Reactive todo projection: refresh the list whenever the store changes.
     todo_sub_id_ = agent::TodoStore::instance().subscribe([this] {
@@ -506,6 +518,33 @@ void MainWindow::on_stop() {
 void MainWindow::on_new_chat() {
     vm_->new_session();   // creates + switches; sessionChanged refreshes sidebar
     phase_label_->setText(QStringLiteral(""));
+}
+
+void MainWindow::on_attach_file() {
+    // Pick a single file and reference it as an inline @mention so the
+    // agent (and tools that accept paths) can act on it.
+    const QString path = QFileDialog::getOpenFileName(
+        this, QStringLiteral("选择附件"), QString(), QStringLiteral("所有文件 (*.*)"));
+    if (path.isEmpty()) return;
+    QString cur = input_->toPlainText();
+    if (!cur.isEmpty() && !cur.endsWith('\n')) cur += '\n';
+    cur += QStringLiteral("@%1\n").arg(path);
+    input_->setPlainText(cur);
+    input_->setFocus();
+}
+
+void MainWindow::on_workspace_mode_toggle(bool checked) {
+    // Switch the label between Read-Only and Workspace-Write so the user
+    // always knows what file tools can do right now. Refusing is the
+    // default (fail-closed), consistent with the approval modal.
+    tool_btn_->setText(checked ? QStringLiteral("🛠 Workspace Write")
+                               : QStringLiteral("🔒 Read-Only"));
+    qputenv("ARIA_WORKSPACE_WRITE", checked ? "1" : "0");
+}
+
+void MainWindow::on_open_settings() {
+    SettingsDialog dlg(this, /*initialPage=*/1);   // land straight on Model
+    dlg.exec();
 }
 
 void MainWindow::toggle_trajectory() {

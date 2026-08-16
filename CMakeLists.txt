@@ -34,11 +34,11 @@ set(ARIA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
 set(ARIA_BUILD_QT6 ON CACHE BOOL "" FORCE)
 add_subdirectory(${ARIA_DIR} aria)
-# Aria's vendored nlohmann/json — reused by the DeepSeek client.
+# Aria's vendored nlohmann/json — reused by the LLM client.
 set(NLOHMANN_DIR ${ARIA_DIR}/third_party/nlohmann_json/include)
-# AriaAgent vendors its own cpp-httplib (0.53.1) — newer than Aria's copy,
-# and REQUIRED for true token-by-token streaming (Client::Post ContentReceiver).
-set(CPPHTTPLIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/cpp-httplib)
+# Use Aria's vendored cpp-httplib (0.53.1 since Aria cc19d76) — supports
+# Client::Post ContentReceiver for true token-by-token SSE streaming.
+set(CPPHTTPLIB_DIR ${ARIA_DIR}/third_party/cpp-httplib)
 
 # OpenSSL for HTTPS transport (MSYS2 system package).
 find_package(OpenSSL REQUIRED)
