@@ -78,6 +78,36 @@ SettingsDialog::SettingsDialog(SettingsVm* vm, AppText* texts,
     root->addLayout(btns);
     setLayout(root);
 
+    // On macOS QMacStyle renders QLineEdit/QComboBox/QCheckBox/QGroupBox with
+    // the SYSTEM palette, ignoring the inherited MainWindow stylesheet's
+    // QWidget{background} rule. In dark system mode this leaves the form
+    // controls as dark pills on a light dialog. Explicitly override every
+    // native form control so they follow g_theme.
+    setStyleSheet(QStringLiteral(
+        "QDialog { background:%1; }"
+        "QLineEdit { background:%2; color:%3; border:1px solid %4;"
+        "  border-radius:6px; padding:6px 8px; selection-background-color:%5; }"
+        "QLineEdit:focus { border-color:%5; }"
+        "QComboBox { background:%2; color:%3; border:1px solid %4;"
+        "  border-radius:6px; padding:4px 8px; selection-background-color:%5; }"
+        "QComboBox:focus { border-color:%5; }"
+        "QComboBox::drop-down { border:none; width:18px; }"
+        "QComboBox QAbstractItemView { background:%2; color:%3;"
+        "  selection-background-color:%5; selection-color:white;"
+        "  border:1px solid %4; }"
+        "QCheckBox { color:%3; spacing:6px; background:transparent; }"
+        "QCheckBox::indicator { width:14px; height:14px;"
+        "  border:1px solid %4; border-radius:3px; background:%2; }"
+        "QCheckBox::indicator:checked { background:%5; border-color:%5; }"
+        "QGroupBox { background:transparent; color:%3; border:1px solid %4;"
+        "  border-radius:6px; margin-top:12px; padding:8px; }"
+        "QGroupBox::title { subcontrol-origin:margin; left:10px; padding:0 4px; }"
+    ).arg(QString::fromUtf8(g_theme.bg),
+          QString::fromUtf8(g_theme.panel2),
+          QString::fromUtf8(g_theme.text),
+          QString::fromUtf8(g_theme.border),
+          QString::fromUtf8(g_theme.accent)));
+
     connect(save_btn, &QPushButton::clicked, this, [this] { save(); accept(); });
     connect(cancel_btn, &QPushButton::clicked, this, &QDialog::reject);
 }

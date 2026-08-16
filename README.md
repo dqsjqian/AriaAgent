@@ -59,17 +59,24 @@ AriaAgent/
 ├── core/                    # ★ 纯 C++,零 Qt 依赖(移动端直接复用)
 │   ├── agent/               #   引擎层:agent 循环 / llm_client / 工具 /
 │   │                        #   session_store / json_schema / subprocess
-│   └── viewmodel/           #   ChatViewModel:aria::binding::ViewModel +
-│                            #   Property/ObservableList/TypedSignal
-│                            #   (无 QObject、无 QString、无 UI 弹窗)
-├── platform/                # ★ 平台壳(唯一允许碰 UI 框架的地方)
-│   ├── qt/                  #   Qt6 桌面:main.cpp(QtDispatcher)/
-│   │                        #   main_window / settings_dialog / markdown_render
-│   └── (未来) ios/ android/ #   同一套 core 直接链接,只需新写视图壳
+│   └── module_api/          #   BaseVm / IModule / ModuleRegistry / ServiceHub
+├── modules/                 # ★ 业务模块(plugin pattern,每个模块自带 VM)
+│   ├── chat/                #   聊天模块(引擎桥接 + ChatViewModel)
+│   ├── sessions/            #   会话列表(侧边栏投影)
+│   ├── settings/            #   设置 + Qt 设置对话框
+│   ├── todo/  trajectory/   #   待办 / 工具调用轨迹
+│   └── app/                 #   app 壳
+│       ├── viewmodel/       #   AppText(UI 文案服务)
+│       └── platforms/qt/    #   ★ 平台壳:main.cpp(QtDispatcher)/
+│                            #     main_window / markdown_render
 ├── third_party/aria         # vendored 框架(submodule)
-├── core/CMakeLists.txt      # ariaagent_core + ariaagent_viewmodel
-└── platform/qt/CMakeLists.txt  # aria_agent 可执行
+├── core/CMakeLists.txt      # ariaagent_core
+└── modules/app/platforms/qt/CMakeLists.txt  # aria_agent 可执行
 ```
+
+> 注意:`platform/` 目录是早期残留的死代码,实际 Qt 壳在
+> `modules/app/platforms/qt/`,构建以顶层 CMakeLists.txt 为准。
+> iOS / Android 壳(未来)同样放 `modules/app/platforms/` 下,复用同一套 core。
 
 **跨线程**:VM 通过 `aria::runtime::main_dispatcher()` 回到 UI 线程 —— Qt 壳在
 `main.cpp` 里安装 `QtDispatcher`,iOS/Android 壳装各自的 dispatcher,VM 本身
@@ -82,10 +89,21 @@ AriaAgent/
 
 ### 前置
 - **Windows**:MSYS2 UCRT64(GCC 13+)、Qt6、OpenSSL、CMake ≥ 3.20
-- Aria 子模块需先初始化:
+- **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.20
+- Aria 子模块需先初始化(注意:**不要** `--recursive` —— openssl submodule
+  自带 10 个测试子模块,递归会拉很久):
 
 ```bash
-git submodule update --init --recursive
+git submodule update --init
+```
+
+### 构建(macOS)
+
+```bash
+cmake -S . -B build/flavors/debug -DCMAKE_BUILD_TYPE=Debug \
+      -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
+cmake --build build/flavors/debug -j 8
+./build/flavors/debug/bin/aria_agent
 ```
 
 ### 构建(Windows)

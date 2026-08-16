@@ -20,7 +20,9 @@
 #include <QFrame>
 #include <QFileDialog>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
+#include <QShowEvent>
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
@@ -241,6 +243,7 @@ void MainWindow::apply_theme() {
         "QLabel#phase { color:%4; font-weight:600; font-size:13px; }"
         "QLabel#hint { color:%5; font-size:13px; }"
         "QLabel#workspaceTag { color:%2; font-size:13px; padding:3px 8px; background:%3; border-radius:6px; }"
+        "QLabel#logoLabel { background:transparent; color:%2; font-weight:700; font-size:16px; }"
     ).arg(t.bg, t.text, t.panel2, t.accent, t.border, t.panel));
 
     if (auto* sb = findChild<QFrame*>(QStringLiteral("sidebar"))) {
@@ -273,10 +276,11 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     auto* logo_box = new QHBoxLayout;
     logo_box->setSpacing(8);
     auto* logo_lab = new QLabel(QString::fromStdString(texts_->text("app_name")), this);
-    logo_lab->setStyleSheet(QStringLiteral("color:white; font-weight:700; font-size:16px;"));
+    logo_lab->setObjectName(QStringLiteral("logoLabel"));   // color via apply_theme()
     auto* tag_lab = new QLabel(QStringLiteral("HARNESS"), this);
-    tag_lab->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; font-size:10px;"
-                                          " font-weight:700; padding:2px 6px; border-radius:4px;"));
+    tag_lab->setStyleSheet(QStringLiteral("background:transparent; color:%1; font-size:10px;"
+                                          " font-weight:700; padding:2px 6px; border-radius:4px;")
+                           .arg(QString::fromUtf8(g_theme.accent)));
     logo_box->addWidget(logo_lab);
     logo_box->addWidget(tag_lab);
     logo_box->addStretch();
@@ -350,6 +354,7 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     input_->setPlaceholderText(QString::fromStdString(texts_->text("input_placeholder")));
     input_->setFixedHeight(80);
     input_->setAcceptRichText(false);
+    input_->installEventFilter(this);   // Enter / Ctrl+Enter send (enter_behavior)
 
     plus_btn_ = new QPushButton(QStringLiteral("+"), this);
     plus_btn_->setObjectName(QStringLiteral("primary"));
@@ -571,6 +576,11 @@ void MainWindow::refresh_session_list() {
     if (current) {
         session_list_->scrollToItem(current, QAbstractItemView::EnsureVisible);
     }
+    // Force a re-layout so each item's visualRect reflects the current viewport
+    // size. Without this, items added before the widget was shown keep stale
+    // (zero-size) rects, and the FIRST click on any item hit-tests to the wrong
+    // row (symptom: "first click always jumps to a different session").
+    session_list_->doItemsLayout();
 }
 
 void MainWindow::on_send() {
@@ -588,6 +598,36 @@ void MainWindow::on_stop() {
 void MainWindow::on_new_chat() {
     sessions_vm_->new_session();   // store emits session_changed → chat reloads
     phase_label_->setText(QStringLiteral(""));
+}
+
+void MainWindow::showEvent(QShowEvent* ev) {
+    QMainWindow::showEvent(ev);
+    // The sidebar session list was populated in the constructor before the
+    // widget was on-screen, so its item visualRects were computed against a
+    // zero-size viewport. Force one re-layout now that the real geometry is
+    // known, otherwise the first click on any session item hit-tests the
+    // wrong row. (Same reason refresh_session_list() calls doItemsLayout.)
+    session_list_->doItemsLayout();
+}
+
+bool MainWindow::eventFilter(QObject* obj, QEvent* ev) {
+    // Honor the enter_behavior setting in the chat input box:
+    //   0 = Enter sends (Shift+Enter newline), 1 = Ctrl+Enter sends (Enter newline).
+    if (obj == input_ && ev->type() == QEvent::KeyPress) {
+        auto* ke = static_cast<QKeyEvent*>(ev);
+        if (ke->key() == Qt::Key_Return || ke->key() == Qt::Key_Enter) {
+            const bool ctrl  = ke->modifiers().testFlag(Qt::ControlModifier);
+            const bool shift = ke->modifiers().testFlag(Qt::ShiftModifier);
+            const bool enter_sends = settings_vm_->enter_behavior.get() == 0;
+            const bool want_send = enter_sends ? (!ctrl && !shift)
+                                               : (ctrl && !shift);
+            if (want_send) {
+                on_send();
+                return true;   // consumed — no newline inserted
+            }
+        }
+    }
+    return QMainWindow::eventFilter(obj, ev);
 }
 
 void MainWindow::on_attach_file() {

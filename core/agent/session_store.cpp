@@ -57,6 +57,11 @@ std::string SessionStore::create(const std::string& title) {
     const std::string id = "s" + std::to_string(t) + "_" +
                            std::to_string(counter.fetch_add(1));
     (void)title;
+    // The sessions dir may not exist on first launch — create it, otherwise
+    // the ofstream below fails silently and the session is never persisted
+    // (list() then never finds it → "new chat" appears broken).
+    std::error_code ec;
+    std::filesystem::create_directories(base_dir(), ec);
     json doc;
     doc["id"] = id;
     doc["title"] = title.empty() ? agent::i18n::str("new_chat_default") : title;
@@ -172,6 +177,8 @@ void SessionStore::persist_current(const std::string& title_hint) {
     doc["updated_at"] = ts;
     doc["messages"] = json::array();
     for (const auto& m : current_history_) doc["messages"].push_back(m.to_storage_json());
+    std::error_code ec;
+    std::filesystem::create_directories(base_dir(), ec);
     std::ofstream f(path_for(current_id_), std::ios::trunc);
     f << doc.dump(2);
 }
