@@ -165,4 +165,18 @@ std::string AgentEngine::run(MessageList& messages, const AgentCallbacks& cb) {
     throw std::runtime_error(msg);
 }
 
+std::string AgentEngine::summarize(const MessageList& prefix) {
+    MessageList request;
+    request.push_back({Role::System,
+        "You are a conversation summariser. Compress the following chat "
+        "history into a concise summary (2-5 sentences) that preserves: the "
+        "user's goals, key facts the assistant learned, and the outcome of "
+        "each tool call. Keep it in the same language as the conversation.",
+        {}, "", "", false});
+    for (const auto& m : prefix) request.push_back(m);
+    request.push_back({Role::User, "Summarise the conversation above.",
+                       {}, "", "", false});
+    return client().complete(request);
+}
+
 } // namespace agent

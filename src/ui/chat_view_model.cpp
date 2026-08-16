@@ -212,6 +212,7 @@ void ChatViewModel::finalize_success() {
     phase_text = "";
     streaming_text = "";
     persist_current();
+    maybe_compact();
 }
 
 void ChatViewModel::finalize_error(const QString& err) {
@@ -242,6 +243,83 @@ std::string ChatViewModel::derive_title() const {
             return t;
         }
     return {};
+}
+
+void ChatViewModel::maybe_compact() {
+    // Ported from harness compaction: when the log grows large, replace the
+    // old prefix with a model-generated summary. Never split a tool-call /
+    // tool-result pair, and never summarise the most recent window.
+    constexpr size_t kThreshold = 32;     // messages before considering
+    constexpr size_t kKeepTail = 8;       // recent messages always kept verbatim
+    if (history_.size() < kThreshold) return;
+
+    // Find the cut index: walk back from the end, stop once we've collected
+    // kKeepTail messages and we're at a safe boundary (not a tool result
+    // whose call is in the compacted region).
+    size_t cut = history_.size() - kKeepTail;
+    while (cut > 1) {
+        const auto& m = history_[cut];
+        if (m.role == agent::Role::Tool) { ++cut; break; }   // keep its call
+        break;
+    }
+    if (cut <= 1) return;   // nothing meaningful to compact
+
+    // Build the prefix to summarise: [system] + [cut-1 messages].
+    agent::MessageList prefix;
+    prefix.push_back(history_.front());                    // system prompt
+    for (size_t i = 1; i < cut; ++i) prefix.push_back(history_[i]);
+
+    QString old_phase = phase_text.get().c_str();
+    phase_text = "compacting…";
+
+    worker_ = std::make_unique<std::thread>([this, prefix, cut, old_phase] {
+        std::string summary;
+        bool ok = false;
+        try {
+            summary = engine_.summarize(prefix);
+            ok = true;
+        } catch (const std::exception&) { /* keep history as-is on failure */ }
+        post_to_ui(this, [this, prefix, cut, summary, ok, old_phase] {
+            phase_text = old_phase.toStdString();
+            if (!ok || summary.empty()) return;
+
+            // Replace history_[1..cut) with a single system-compaction note.
+            agent::MessageList compacted;
+            compacted.push_back(history_.front());
+            compacted.push_back({agent::Role::System,
+                "[Compacted conversation summary] " + summary, {}, "", "", false});
+            for (size_t i = cut; i < history_.size(); ++i)
+                compacted.push_back(history_[i]);
+            history_ = std::move(compacted);
+
+            // Rebuild UI list.
+            messages.clear();
+            tool_trace.clear();
+            for (const auto& m : history_) {
+                if (m.role == agent::Role::User) {
+                    messages.push_back(std::make_shared<UiMessage>(
+                        UiMessage{agent::Role::User, "You", m.content, false, ""}));
+                } else if (m.role == agent::Role::Tool) {
+                    messages.push_back(std::make_shared<UiMessage>(
+                        UiMessage{agent::Role::Tool, "Tool", m.tool_result, true, "tool"}));
+                } else if (m.role == agent::Role::Assistant) {
+                    if (m.tool_calls.empty()) {
+                        messages.push_back(std::make_shared<UiMessage>(
+                            UiMessage{agent::Role::Assistant, "Agent", m.content, false, ""}));
+                    } else {
+                        for (const auto& tc : m.tool_calls)
+                            messages.push_back(std::make_shared<UiMessage>(
+                                UiMessage{agent::Role::Tool, "Tool · " + tc.name,
+                                          tc.args, true, tc.name}));
+                        if (!m.content.empty())
+                            messages.push_back(std::make_shared<UiMessage>(
+                                UiMessage{agent::Role::Assistant, "Agent", m.content, false, ""}));
+                    }
+                }
+            }
+            persist_current();
+        });
+    });
 }
 
 void ChatViewModel::push_user(const std::string& text) {

@@ -74,6 +74,7 @@ Q_SIGNALS:
 private:
     void finalize_success();
     void finalize_error(const QString& err);
+    void maybe_compact();
     void push_user(const std::string& text);
     void push_assistant(const std::string& text);
     void push_tool(const UiToolCall& tc);
