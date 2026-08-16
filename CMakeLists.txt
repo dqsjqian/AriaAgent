@@ -68,6 +68,7 @@ target_compile_definitions(aria_agent PRIVATE
 target_link_libraries(aria_agent PRIVATE
     aria::qt6          # transitively pulls binding/runtime/async/core/abi
     Qt6::Widgets
+    Qt6::Core
     OpenSSL::SSL
     OpenSSL::Crypto
     aria::warnings
