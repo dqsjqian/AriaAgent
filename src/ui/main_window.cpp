@@ -358,10 +358,8 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     plus_btn_->setCursor(Qt::PointingHandCursor);
 
     tool_btn_ = new QPushButton(QStringLiteral("🛠 Workspace Write"), this);
-    tool_btn_->setCheckable(true);
-    tool_btn_->setChecked(false);   // default: Read-Only (safe)
     tool_btn_->setCursor(Qt::PointingHandCursor);
-    tool_btn_->setToolTip(QStringLiteral("切换文件写入权限"));
+    tool_btn_->setToolTip(QStringLiteral("工作区权限 (Read Only / Workspace Write / Full Access)"));
 
     model_pick_ = new QPushButton(QStringLiteral("DeepSeek-V4-Flash ▾"), this);
     model_pick_->setCursor(Qt::PointingHandCursor);
@@ -470,7 +468,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         todo_btn_->setStyleSheet(QString());
     });
     connect(plus_btn_, &QPushButton::clicked, this, &MainWindow::on_attach_file);
-    connect(tool_btn_, &QPushButton::toggled, this, &MainWindow::on_workspace_mode_toggle);
+    connect(tool_btn_, &QPushButton::clicked, this, &MainWindow::on_workspace_mode_select);
     connect(model_pick_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
     connect(settings_btn_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
 
@@ -544,6 +542,9 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     // Everything is constructed — restyle now that all widgets exist.
     apply_theme();
+
+    // Sync initial workspace level (0/1/2) → env + label.
+    set_workspace_level(ws_level_);
 }
 
 void MainWindow::on_send() {
@@ -576,13 +577,37 @@ void MainWindow::on_attach_file() {
     input_->setFocus();
 }
 
-void MainWindow::on_workspace_mode_toggle(bool checked) {
-    // Switch the label between Read-Only and Workspace-Write so the user
-    // always knows what file tools can do right now. Refusing is the
-    // default (fail-closed), consistent with the approval modal.
-    tool_btn_->setText(checked ? QStringLiteral("🛠 Workspace Write")
-                               : QStringLiteral("🔒 Read-Only"));
-    qputenv("ARIA_WORKSPACE_WRITE", checked ? "1" : "0");
+void MainWindow::on_workspace_mode_select() {
+    // Pop a 3-item menu matching DeepSeek's harness UX. The chosen
+    // level is written to ARIA_WORKSPACE_WRITE (0/1/2) — tool
+    // implementations and the approval gate both read it.
+    QMenu menu(this);
+    auto* ro  = menu.addAction(QStringLiteral("🔒 Read Only"));
+    auto* wr  = menu.addAction(QStringLiteral("🛠 Workspace Write"));
+    auto* all = menu.addAction(QStringLiteral("🔓 Full Access"));
+    ro ->setData(0);
+    wr ->setData(1);
+    all->setData(2);
+    for (QAction* a : {ro, wr, all}) {
+        a->setCheckable(true);
+        a->setChecked(a->data().toInt() == ws_level_);
+    }
+    QAction* picked = menu.exec(tool_btn_->mapToGlobal(
+                                   QPoint(tool_btn_->width() / 2,
+                                          tool_btn_->height())));
+    if (!picked) return;
+    set_workspace_level(picked->data().toInt());
+}
+
+void MainWindow::set_workspace_level(int level) {
+    ws_level_ = (level < 0 || level > 2) ? 1 : level;
+    switch (ws_level_) {
+        case 0: tool_btn_->setText(QStringLiteral("🔒 Read Only"));         break;
+        case 1: tool_btn_->setText(QStringLiteral("🛠 Workspace Write"));    break;
+        case 2: tool_btn_->setText(QStringLiteral("🔓 Full Access"));       break;
+    }
+    char buf[2] = {char('0' + ws_level_), 0};
+    qputenv("ARIA_WORKSPACE_WRITE", buf);
 }
 
 void MainWindow::on_open_settings() {
