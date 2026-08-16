@@ -2,6 +2,7 @@
 #include "ui/settings_dialog.hpp"
 
 #include "ui/main_window.hpp"
+#include "ui/theme.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -22,6 +23,8 @@
 #include <QVBoxLayout>
 
 namespace {
+
+using agent_ui::g_theme;
 
 const char* kSettingsOrg  = "AriaAgent";
 const char* kSettingsApp  = "AriaAgent";
@@ -46,10 +49,13 @@ SettingsDialog::SettingsDialog(QWidget* parent, int initialPage) : QDialog(paren
         QStringLiteral("✦ Agent 预设"),
     });
     nav_->setStyleSheet(QStringLiteral(
-        "QListWidget { background:#1a1d27; border:none; border-radius:10px; padding:8px; }"
+        "QListWidget { background:%1; border:none; border-radius:10px; padding:8px; }"
         "QListWidget::item { padding:12px 14px; border-radius:8px; font-size:14px; }"
-        "QListWidget::item:hover { background:#21252f; }"
-        "QListWidget::item:selected { background:#21252f; color:#3b82f6; }"));
+        "QListWidget::item:hover { background:%2; }"
+        "QListWidget::item:selected { background:%2; color:%3; }")
+        .arg(QString::fromUtf8(g_theme.panel),
+             QString::fromUtf8(g_theme.panel2),
+             QString::fromUtf8(g_theme.accent)));
 
     stack_ = new QStackedWidget(this);
     build_general_page(stack_);
@@ -148,7 +154,7 @@ void SettingsDialog::build_model_page(QStackedWidget* stack) {
         "任何 OpenAI 兼容端点皆可: DeepSeek · OpenAI · Kimi · Qwen · GLM …\n"
         "换厂商只需改 API 地址与模型名,无需重新编译。"), card);
     hint->setWordWrap(true);
-    hint->setStyleSheet(QStringLiteral("color:#8b93a3; font-size:12px;"));
+    hint->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
     form->addRow(QString(), hint);
 
     stack->addWidget(card);
@@ -167,7 +173,7 @@ void SettingsDialog::build_plugins_page(QStackedWidget* stack) {
         cb->setChecked(checked);
         auto* lab = new QLabel(desc, box);
         lab->setWordWrap(true);
-        lab->setStyleSheet(QStringLiteral("color:#8b93a3; font-size:12px;"));
+        lab->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
         bv->addWidget(cb);
         bv->addWidget(lab);
         v->addWidget(box);
@@ -182,7 +188,7 @@ void SettingsDialog::build_plugins_page(QStackedWidget* stack) {
         "内置工具在 src/agent/tool_registry.cpp 注册,\n"
         "新增工具只需实现 Tool{name, desc, schema, fn} 并 register_tool。"), card);
     hint->setWordWrap(true);
-    hint->setStyleSheet(QStringLiteral("color:#8b93a3; font-size:12px;"));
+    hint->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
     v->addWidget(hint);
     v->addStretch();
 
@@ -213,7 +219,7 @@ void SettingsDialog::build_presets_page(QStackedWidget* stack) {
         "· 创造 —— 注入「发散思考、勇于联想」的引导\n"
         "· 极简 —— 使用精简提示词,减少 token 开销"), card);
     hint->setWordWrap(true);
-    hint->setStyleSheet(QStringLiteral("color:#8b93a3; font-size:12px;"));
+    hint->setStyleSheet(QStringLiteral("color:%1; font-size:12px;").arg(QString::fromUtf8(g_theme.text_dim)));
     v->addWidget(hint);
     v->addStretch();
 
