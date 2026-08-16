@@ -29,7 +29,6 @@ ChatViewModel::ChatViewModel(agent::ToolRegistry tools, QObject* parent)
     connect(this, &ChatViewModel::finished, this, &ChatViewModel::finalize_success);
     connect(this, &ChatViewModel::errorOccurred, this, &ChatViewModel::finalize_error);
 }
-
 ChatViewModel::~ChatViewModel() {
     stop();
 }
@@ -37,6 +36,11 @@ ChatViewModel::~ChatViewModel() {
 void ChatViewModel::send(const QString& text) {
     const std::string input = text.toStdString();
     if (input.empty() || running_) return;
+
+    // Settings dialog writes these env vars on save; pick up any updates.
+    if (const char* p = std::getenv("ARIA_LLM_SYSTEM_PROMPT"); p && *p) {
+        engine_.set_system_prompt(p);
+    }
 
     running_ = true;
     busy = true;
