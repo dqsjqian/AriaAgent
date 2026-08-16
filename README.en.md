@@ -72,23 +72,30 @@ source of truth, schema-driven tools, and fail-closed permissions.
 - **Approval gate** — modal confirmation before dangerous tools, default-deny
   (fail-closed)
 
-### 🏗 Architecture
+### 🏗 Architecture (pure-C++ core + platform shells)
 ```
-src/
-├── agent/            # Engine layer (zero UI deps, zero provider deps)
-│   ├── agent.cpp     #   coroutine agent loop
-│   ├── llm_client.*  #   LlmClient interface + OpenAI-compatible impl
-│   ├── tool_registry.*   #   tool registry + JSON-Schema validation
-│   ├── shell_tools.* / fs_tools.* / todo_tools.*
-│   ├── session_store.*   #   session persistence
-│   └── model.hpp / json_schema.*
-├── ui/               # Qt6 layer (DeepSeek-harness design language)
-│   ├── chat_view_model.*  #   reactive view-model
-│   ├── main_window.*      #   main window + bubble delegate
-│   ├── settings_dialog.*  #   settings (General/Model/Plugins/Presets)
-│   └── markdown_render.*  #   markdown → HTML renderer
-└── main.cpp
+AriaAgent/
+├── core/                    # ★ Pure C++, zero Qt (reused verbatim on mobile)
+│   ├── agent/               #   engine: agent loop / llm_client / tools /
+│   │                        #   session_store / json_schema / subprocess
+│   └── viewmodel/           #   ChatViewModel: aria::binding::ViewModel +
+│                            #   Property/ObservableList/TypedSignal
+│                            #   (no QObject, no QString, no UI dialogs)
+├── platform/                # ★ Shells (the only place allowed to touch a UI kit)
+│   ├── qt/                  #   Qt6 desktop: main.cpp (QtDispatcher) /
+│   │                        #   main_window / settings_dialog / markdown_render
+│   └── (future) ios/ android/  # same core linked verbatim; new view shells
+├── third_party/aria         # vendored framework (submodule)
+├── core/CMakeLists.txt      # ariaagent_core + ariaagent_viewmodel
+└── platform/qt/CMakeLists.txt  # aria_agent executable
 ```
+**Threading**: the VM marshals back to the UI thread via
+`aria::runtime::main_dispatcher()` — the Qt shell installs a `QtDispatcher`,
+mobile shells install their own; the VM never knows which platform it is on.
+
+**Approval prompts**: the VM exposes an `approval_ui` callback that the shell
+injects (QMessageBox / UIAlertController / Android Dialog). The VM never pops
+a dialog itself.
 
 ## 🚀 Quick start
 
