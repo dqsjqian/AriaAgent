@@ -9,9 +9,7 @@
 #include <QTemporaryFile>
 #include <QTextStream>
 
-#include <chrono>
-#include <map>
-#include <mutex>
+#include <cstdlib>
 
 namespace agent {
 
@@ -20,6 +18,17 @@ using json = nlohmann::json;
 namespace {
 
 constexpr const char* kWorkspace = "D:/Coding/AriaAgent";   // default sandbox root
+
+// Workspace trust gate: refuse in Read Only, allow in Workspace Write / Full.
+std::optional<json> ws_read_only_deny(const char* op) {
+    const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
+    if (mode && *mode && *mode != '1' && *mode != '2') {
+        return json{{"error", op}, {"reason",
+            "workspace mode is Read Only — switch the input bar dropdown "
+            "to Workspace Write or Full Access to use this tool"}};
+    }
+    return std::nullopt;
+}
 
 // ── Background process registry (handle → QProcess*) ───────────────────────
 struct ProcRegistry {
@@ -33,6 +42,7 @@ ProcRegistry& procs() {
 }
 
 json run_command_impl(const json& args, ToolContext&) {
+    if (auto deny = ws_read_only_deny("run_command")) return *deny;
     const std::string cmd = args.value("command", "");
     const int timeout_ms = args.value("timeout_ms", 30000);
     if (cmd.empty()) return json{{"error", "command is required"}};
@@ -63,6 +73,7 @@ json run_command_impl(const json& args, ToolContext&) {
 }
 
 json run_background_impl(const json& args, ToolContext&) {
+    if (auto deny = ws_read_only_deny("run_in_background")) return *deny;
     const std::string cmd = args.value("command", "");
     if (cmd.empty()) return json{{"error", "command is required"}};
 
@@ -95,6 +106,7 @@ json read_output_impl(const json& args, ToolContext&) {
 }
 
 json kill_process_impl(const json& args, ToolContext&) {
+    if (auto deny = ws_read_only_deny("kill_process")) return *deny;
     const int handle = args.value("handle", -1);
     std::lock_guard<std::mutex> lk(procs().mu);
     auto it = procs().procs.find(handle);

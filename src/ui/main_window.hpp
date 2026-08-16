@@ -34,7 +34,8 @@ private:
     void refresh_todo();
     void show_message_menu(const QPoint& pos);
     void on_attach_file();
-    void on_workspace_mode_toggle(bool checked);
+    void on_workspace_mode_select();   // dropdown triggered; pops a 3-item menu
+    void set_workspace_level(int level); // 0=read-only, 1=workspace-write, 2=full
     void on_open_settings();
 
     ChatViewModel* vm_;
@@ -53,10 +54,11 @@ private:
     QPushButton* traj_btn_;
     QPushButton* todo_btn_;
     QPushButton* plus_btn_;       // +  attachment / upload
-    QPushButton* tool_btn_;       // 🛠  Workspace Write ↔ Read-Only toggle
+    QPushButton* tool_btn_;       // 🛠  Workspace mode dropdown (Read Only / Write / Full)
     QPushButton* model_pick_;     // model picker -> SettingsDialog Model page
     QLabel*     phase_label_;
     QLabel*     model_label_;
+    int         ws_level_{1};      // workspace trust level (see set_workspace_level)
     QStackedWidget* right_panel_;
     QWidget*    right_wrap_;       // container (title bar + panel) — collapsible
     QPushButton* close_panel_btn_; // ✕ collapse button on the panel title bar

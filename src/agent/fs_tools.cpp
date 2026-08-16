@@ -7,6 +7,7 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <cstdlib>
 
 namespace agent {
 
@@ -15,6 +16,17 @@ using json = nlohmann::json;
 namespace {
 
 constexpr const char* kWorkspace = "D:/Coding/AriaAgent";   // sandbox root
+
+// Read-only mode guard (mirrors shell_tools::ws_read_only_deny).
+std::optional<json> ws_read_only_deny(const char* op) {
+    const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
+    if (mode && *mode && *mode != '1' && *mode != '2') {
+        return json{{"error", op}, {"reason",
+            "workspace mode is Read Only — switch the input bar dropdown "
+            "to Workspace Write or Full Access to use this tool"}};
+    }
+    return std::nullopt;
+}
 
 // Refuse paths that escape the workspace (path traversal guard).
 bool in_workspace(const std::string& p, std::string* err) {
@@ -45,6 +57,7 @@ json read_file_impl(const json& args, ToolContext&) {
 }
 
 json write_file_impl(const json& args, ToolContext&) {
+    if (auto deny = ws_read_only_deny("write_file")) return *deny;
     const std::string path = args.value("path", "");
     const std::string content = args.value("content", "");
     if (path.empty()) return json{{"error", "path is required"}};
@@ -60,6 +73,7 @@ json write_file_impl(const json& args, ToolContext&) {
 }
 
 json edit_file_impl(const json& args, ToolContext&) {
+    if (auto deny = ws_read_only_deny("edit_file")) return *deny;
     const std::string path = args.value("path", "");
     const std::string old_text = args.value("old", "");
     const std::string new_text = args.value("new", "");

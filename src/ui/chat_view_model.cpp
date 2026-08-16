@@ -178,6 +178,14 @@ void ChatViewModel::send(const QString& text) {
         };
         cb.on_approval = [this](const std::string& tool,
                                 const std::string& args) {
+            // Full Access (level 2) skips the prompt entirely — the user has
+            // already committed to letting the agent run unrestricted. Other
+            // levels go through the modal approval.
+            if (const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
+                mode && *mode == '2') {
+                return true;
+            }
+
             // Runs on the engine worker thread. Marshal to the UI thread and
             // block until the user decides (fail-closed on any error).
             std::atomic<bool> approved{false};
