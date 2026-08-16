@@ -11,6 +11,7 @@ class QPushButton;
 class QLabel;
 class QListWidget;
 class QStackedWidget;
+class QWidget;
 
 class ChatViewModel;
 
@@ -57,6 +58,8 @@ private:
     QLabel*     phase_label_;
     QLabel*     model_label_;
     QStackedWidget* right_panel_;
+    QWidget*    right_wrap_;       // container (title bar + panel) — collapsible
+    QPushButton* close_panel_btn_; // ✕ collapse button on the panel title bar
     bool        trajectory_visible_{false};
     int         todo_sub_id_{0};
 };

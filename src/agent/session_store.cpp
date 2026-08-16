@@ -120,7 +120,22 @@ void SessionStore::save(const std::string& id, const MessageList& messages,
     json doc;
     doc["id"] = id;
     doc["title"] = title_hint.empty() ? "New chat" : title_hint;
-    doc["created_at"] = t;
+    // Preserve the original creation time — the sidebar sorts by it.
+    // Overwriting it here made the previously-active session jump to the
+    // top of the list whenever the user switched (persist_current runs
+    // before the switch, so the session being left got a fresh timestamp).
+    {
+        std::ifstream in(path_for(id));
+        if (in) {
+            std::stringstream ss; ss << in.rdbuf();
+            try {
+                json old = json::parse(ss.str());
+                doc["created_at"] = old.value("created_at", t);
+            } catch (...) { doc["created_at"] = t; }
+        } else {
+            doc["created_at"] = t;
+        }
+    }
     doc["updated_at"] = t;
     doc["messages"] = json::array();
     for (const auto& m : messages) doc["messages"].push_back(m.to_storage_json());

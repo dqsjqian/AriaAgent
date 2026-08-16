@@ -1,5 +1,6 @@
 // AriaAgent — Markdown renderer implementation.
 #include "ui/markdown_render.hpp"
+#include "ui/theme.hpp"
 
 #include <QRegularExpression>
 #include <QStringList>
@@ -25,7 +26,11 @@ QString escape_html(const QString& s) {
 QString highlight_code(const QString& code) {
     static const QRegularExpression re(
         R"((\b(?:return|if|else|for|while|break|continue|class|struct|enum|public|private|protected|static|const|constexpr|auto|void|int|float|double|bool|string|char|template|typename|namespace|using|new|delete|true|false|nullptr|this|virtual|override|co_await|co_return|async|await|function|let|var|import|export|from|def|lambda|std|require|yield)\b)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(\b\d+(?:\.\d+)?\b)|(//[^\n]*|#[^\n]*|/\*[\s\S]*?\*/))");
-    const QString ckw = "#c678dd", cstr = "#98c379", cnum = "#d19a66", ccmt = "#5c6370";
+    // Syntax colors: dark theme (One Dark-ish) vs light theme variants.
+    const QString ckw  = theme_is_light() ? "#7c3aed" : "#c678dd";
+    const QString cstr = theme_is_light() ? "#15803d" : "#98c379";
+    const QString cnum = theme_is_light() ? "#b45309" : "#d19a66";
+    const QString ccmt = theme_is_light() ? "#64748b" : "#5c6370";
     QString out = escape_html(code);
     // Multi-line comments first (can't regex across our escaped string easily,
     // so pre-split by lines for simplicity).
@@ -64,9 +69,10 @@ QString highlight_code(const QString& code) {
 
 QString render_inline(const QString& text) {
     QString out = escape_html(text);
-    // `code`
+    // `code` — themed inline-code chip (dark: #2a2f3a bg; light: panel2)
     out.replace(QRegularExpression(R"(`([^`]+)`)"),
-                QStringLiteral("<span style='background:#2a2f3a; color:#e06c75; font-family:Consolas,monospace; padding:0 3px; border-radius:3px;'>\\1</span>"));
+                QStringLiteral("<span style='background:%1; color:#e06c75; font-family:Consolas,monospace; padding:0 3px; border-radius:3px;'>\\1</span>")
+                    .arg(QString::fromUtf8(g_theme.panel2)));
     // **bold**
     out.replace(QRegularExpression(R"(\*\*([^*]+)\*\*)"), QStringLiteral("<b>\\1</b>"));
     // *italic*
@@ -91,8 +97,10 @@ QString markdown_to_html(const QString& markdown) {
     auto flush_code = [&] {
         if (!in_code) return;
         QString highlighted = highlight_code(code_buf);
-        html += QStringLiteral("<pre style='background:#161a22; border-radius:8px; padding:10px; margin:6px 0;'><code style='font-family:Consolas,monospace; color:#abb2bf;'>%1</code></pre>")
-                    .arg(highlighted);
+        html += QStringLiteral("<pre style='background:%1; border-radius:8px; padding:10px; margin:6px 0;'><code style='font-family:Consolas,monospace; color:%2;'>%3</code></pre>")
+                    .arg(QString::fromUtf8(g_theme.panel2),
+                         QString::fromUtf8(g_theme.text),
+                         highlighted);
         code_buf.clear();
         code_lang.clear();
         in_code = false;
@@ -132,7 +140,12 @@ QString markdown_to_html(const QString& markdown) {
 
         // Blockquote
         if (line.startsWith("> ")) {
-            if (!in_quote) { html += "<blockquote style='border-left:3px solid #3b82f6; margin:6px 0; padding-left:10px; color:#8b93a3;'>"; in_quote = true; }
+            if (!in_quote) {
+                html += QStringLiteral("<blockquote style='border-left:3px solid %1; margin:6px 0; padding-left:10px; color:%2;'>")
+                            .arg(QString::fromUtf8(g_theme.accent),
+                                 QString::fromUtf8(g_theme.text_dim));
+                in_quote = true;
+            }
             html += render_inline(line.mid(2)) + "<br/>";
             goto next_line;
         }
@@ -157,7 +170,8 @@ QString markdown_to_html(const QString& markdown) {
 
         // Horizontal rule
         if (line.trimmed() == "---" || line.trimmed() == "***") {
-            html += "<hr style='border:none; border-top:1px solid #2a2f3a; margin:8px 0;'/>";
+            html += QStringLiteral("<hr style='border:none; border-top:1px solid %1; margin:8px 0;'/>")
+                        .arg(QString::fromUtf8(g_theme.border));
             goto next_line;
         }
 
@@ -181,12 +195,15 @@ void render_markdown(const QString& markdown, QTextDocument& doc) {
         "<style>"
         "body { font-size:14px; }"
         "p { margin:4px 0; }"
-        "h1,h2,h3,h4 { margin:8px 0 4px 0; color:#f1f5f9; }"
-        "a { color:#3b82f6; text-decoration:none; }"
-        "</style>%1").arg(html);
+        "h1,h2,h3,h4 { margin:8px 0 4px 0; color:%1; }"
+        "a { color:%2; text-decoration:none; }"
+        "</style>%3")
+        .arg(QString::fromUtf8(g_theme.text),
+             QString::fromUtf8(g_theme.accent), html);
     doc.setHtml(styled);
     doc.setDefaultStyleSheet(QStringLiteral(
-        "body { color:#e5e7eb; font-size:14px; font-family:'Segoe UI','Microsoft YaHei UI',sans-serif; }"));
+        "body { color:%1; font-size:14px; font-family:'Segoe UI','Microsoft YaHei UI',sans-serif; }")
+        .arg(QString::fromUtf8(g_theme.text)));
 }
 
 } // namespace agent_ui

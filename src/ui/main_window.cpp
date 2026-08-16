@@ -5,6 +5,7 @@
 #include "ui/chat_view_model.hpp"
 #include "ui/markdown_render.hpp"
 #include "ui/settings_dialog.hpp"
+#include "ui/theme.hpp"
 
 #include "agent/todo_store.hpp"
 
@@ -34,49 +35,12 @@
 
 namespace {
 
-// ── Theme ───────────────────────────────────────────────────────────────────
-// Two palettes (dark default / light). The active one is loaded from
-// QSettings("theme") so the Settings dialog can switch it at runtime.
-struct Theme {
-    const char* bg;        // window background
-    const char* panel;     // sidebar / panels
-    const char* panel2;    // raised surfaces (input, tags)
-    const char* border;    // borders / secondary text on tags
-    const char* bubble_user;
-    const char* bubble_asst;
-    const char* bubble_tool;
-    const char* text;      // primary text
-    const char* text_dim;  // secondary text
-    const char* accent;
-};
-
-constexpr Theme kThemeDark = {
-    "#0f1117", "#1a1d27", "#21252f", "#2a2f3a",
-    "#3b82f6", "#1f2330", "#1e2940",
-    "#e5e7eb", "#8b93a3", "#3b82f6",
-};
-
-constexpr Theme kThemeLight = {
-    "#f5f6f8", "#ffffff", "#eef0f4", "#d5dae3",
-    "#3b82f6", "#f0f2f6", "#e8edf7",
-    "#1f2430", "#6b7280", "#3b82f6",
-};
-
-Theme load_theme() {
-    QSettings s("AriaAgent", "AriaAgent");
-    const int t = s.value("theme", 2).toInt();   // 0=system, 1=light, 2=dark
-    if (t == 1) return kThemeLight;
-    if (t == 0) {
-        // Follow the OS: use the app palette's window lightness.
-        const QColor win = QApplication::palette().color(QPalette::Window);
-        return win.lightness() > 128 ? kThemeLight : kThemeDark;
-    }
-    return kThemeDark;
-}
-
-// Global active theme (constexpr palette never changes; this indirection
-// lets delegates + MainWindow read the current one).
-Theme g_theme = kThemeDark;
+// ── Theme (shared with settings dialog + markdown renderer) ────────────────
+// Palette is defined in ui/theme.hpp; g_theme holds the active one and is
+// reloaded by MainWindow::apply_theme().
+using agent_ui::Theme;
+using agent_ui::g_theme;
+using agent_ui::load_theme;
 
 enum : int {
     RoleAuthor  = Qt::UserRole + 1,
@@ -223,22 +187,22 @@ public:
         const bool ok = idx.data(RoleToolOk).toBool();
         if (result.size() > 100) result = result.left(97) + "…";
 
-        p->setPen(QPen(QColor("#2a2f3a"), 2));
+        p->setPen(QPen(QColor(g_theme.border), 2));
         p->drawLine(QPoint(r.left() + 8, r.top()), QPoint(r.left() + 8, r.bottom()));
         p->setPen(Qt::NoPen);
-        p->setBrush(ok ? QColor("#3b82f6") : QColor("#e24b4a"));
+        p->setBrush(ok ? QColor(g_theme.accent) : QColor("#e24b4a"));
         p->drawEllipse(QPoint(r.left() + 8, r.top() + 10), 5, 5);
 
         const int bx = r.left() + 22;
         QFont bold = opt.font; bold.setBold(true);
         p->setFont(bold);
-        p->setPen(QColor("#f1f5f9"));
+        p->setPen(QColor(g_theme.text));
         p->drawText(QRect(bx, r.top() + 2, r.width() - 30, 18),
                     Qt::AlignLeft, name + " " + args);
 
         QFont normal = opt.font; normal.setPointSizeF(normal.pointSizeF() - 0.5);
         p->setFont(normal);
-        p->setPen(ok ? QColor("#8b93a3") : QColor("#f09595"));
+        p->setPen(ok ? QColor(g_theme.text_dim) : QColor("#f09595"));
         p->drawText(QRect(bx, r.top() + 22, r.width() - 30, r.height() - 24),
                     Qt::AlignLeft | Qt::TextWordWrap, result);
 
@@ -282,14 +246,9 @@ void MainWindow::apply_theme() {
         sb->setStyleSheet(QStringLiteral("QFrame#sidebar { background:%1; border-right:1px solid %2; }")
                           .arg(t.panel, t.border));
     }
-    if (trajectory_list_) {
-        trajectory_list_->setStyleSheet(QStringLiteral(
-            "QListView { background:%1; border-left:1px solid %2; padding:10px; }")
-            .arg(t.panel, t.border));
-    }
-    if (todo_list_) {
-        todo_list_->setStyleSheet(QStringLiteral(
-            "QListWidget { background:%1; border-left:1px solid %2; padding:10px; }")
+    if (right_wrap_) {
+        right_wrap_->setStyleSheet(QStringLiteral(
+            "QWidget#rightPanel { background:%1; border-left:1px solid %2; }")
             .arg(t.panel, t.border));
     }
     if (model_label_) {
@@ -452,24 +411,49 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     trajectory_list_->setSelectionMode(QAbstractItemView::NoSelection);
     trajectory_list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     trajectory_list_->setFocusPolicy(Qt::NoFocus);
+    trajectory_list_->setStyleSheet(QStringLiteral(
+        "QListView { background:transparent; border:none; padding:10px; }"));
 
     todo_list_ = new QListWidget(this);
     todo_list_->setSelectionMode(QAbstractItemView::NoSelection);
     todo_list_->setStyleSheet(QStringLiteral(
+        "QListWidget { background:transparent; border:none; padding:10px; }"
         "QListWidget::item { padding:10px 12px; border-radius:8px; }"));
 
     right_panel_ = new QStackedWidget(this);
     right_panel_->addWidget(trajectory_list_);   // page 0: trajectory
     right_panel_->addWidget(todo_list_);         // page 1: todo
     right_panel_->setFixedWidth(340);
-    right_panel_->setVisible(false);   // hidden until toggled
+
+    // Collapsible right-side container: title bar (label + ✕ collapse
+    // button) above the stacked panel. Clicking ✕ hides the whole thing.
+    right_wrap_ = new QWidget(this);
+    right_wrap_->setObjectName(QStringLiteral("rightPanel"));
+    auto* rv = new QVBoxLayout(right_wrap_);
+    rv->setContentsMargins(0, 0, 0, 0);
+    rv->setSpacing(0);
+    auto* rbar = new QHBoxLayout;
+    rbar->setContentsMargins(14, 8, 8, 4);
+    auto* rtitle = new QLabel(QStringLiteral("工具面板"), right_wrap_);
+    rtitle->setStyleSheet(QStringLiteral("font-weight:600; color:%1;")
+                          .arg(QString::fromUtf8(g_theme.text)));
+    close_panel_btn_ = new QPushButton(QStringLiteral("✕"), right_wrap_);
+    close_panel_btn_->setCursor(Qt::PointingHandCursor);
+    close_panel_btn_->setFixedSize(28, 28);
+    close_panel_btn_->setToolTip(QStringLiteral("收起面板"));
+    rbar->addWidget(rtitle);
+    rbar->addStretch();
+    rbar->addWidget(close_panel_btn_);
+    rv->addLayout(rbar);
+    rv->addWidget(right_panel_, 1);
+    right_wrap_->setVisible(false);   // hidden until toggled
 
     auto* root = new QHBoxLayout;
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
     root->addWidget(sidebar_w);
     root->addWidget(chat_w, 1);
-    root->addWidget(right_panel_);
+    root->addWidget(right_wrap_);
     auto* root_w = new QWidget(this);
     root_w->setLayout(root);
     setCentralWidget(root_w);
@@ -479,6 +463,12 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     connect(new_chat_btn_, &QPushButton::clicked, this, &MainWindow::on_new_chat);
     connect(traj_btn_, &QPushButton::clicked, this, &MainWindow::toggle_trajectory);
     connect(todo_btn_, &QPushButton::clicked, this, &MainWindow::toggle_todo);
+    connect(close_panel_btn_, &QPushButton::clicked, this, [this] {
+        right_wrap_->setVisible(false);
+        trajectory_visible_ = false;
+        traj_btn_->setStyleSheet(QString());
+        todo_btn_->setStyleSheet(QString());
+    });
     connect(plus_btn_, &QPushButton::clicked, this, &MainWindow::on_attach_file);
     connect(tool_btn_, &QPushButton::toggled, this, &MainWindow::on_workspace_mode_toggle);
     connect(model_pick_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
@@ -601,18 +591,35 @@ void MainWindow::on_open_settings() {
 }
 
 void MainWindow::toggle_trajectory() {
-    trajectory_visible_ = true;
-    right_panel_->setVisible(true);
+    // Clicking the active panel button again collapses the panel.
+    if (right_wrap_->isVisible() && right_panel_->currentIndex() == 0) {
+        right_wrap_->setVisible(false);
+        trajectory_visible_ = false;
+        traj_btn_->setStyleSheet(QString());
+        todo_btn_->setStyleSheet(QString());
+        return;
+    }
+    right_wrap_->setVisible(true);
     right_panel_->setCurrentIndex(0);
-    traj_btn_->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; border-radius:8px; padding:6px 12px;"));
+    trajectory_visible_ = true;
+    traj_btn_->setStyleSheet(QStringLiteral("background:%1; color:white; border-radius:8px; padding:6px 12px;")
+                             .arg(QString::fromUtf8(g_theme.accent)));
     todo_btn_->setStyleSheet(QString());
 }
 
 void MainWindow::toggle_todo() {
-    trajectory_visible_ = true;
-    right_panel_->setVisible(true);
+    if (right_wrap_->isVisible() && right_panel_->currentIndex() == 1) {
+        right_wrap_->setVisible(false);
+        trajectory_visible_ = false;
+        traj_btn_->setStyleSheet(QString());
+        todo_btn_->setStyleSheet(QString());
+        return;
+    }
+    right_wrap_->setVisible(true);
     right_panel_->setCurrentIndex(1);
-    todo_btn_->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; border-radius:8px; padding:6px 12px;"));
+    trajectory_visible_ = true;
+    todo_btn_->setStyleSheet(QStringLiteral("background:%1; color:white; border-radius:8px; padding:6px 12px;")
+                             .arg(QString::fromUtf8(g_theme.accent)));
     traj_btn_->setStyleSheet(QString());
 }
 
