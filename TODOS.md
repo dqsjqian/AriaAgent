@@ -16,50 +16,47 @@
 
 ## P1 — 工具系统(让 agent 真正干活)
 
-- [ ] **P1-1 工具 Schema DSL + 校验** (tools/schema 移植)
+- [x] **P1-1 工具 Schema DSL + 校验** (tools/schema 移植)
       - 一次定义 → 三重产出: 参数校验 + 类型 + UI 提示
       - 路径化校验错误 (ToolArgsError)
       - 参考: harness packages/core/tools/src/schema.ts, json-schema.ts
-- [ ] **P1-2 工具执行调度** (tool-calls 移植)
-      - exclusive 屏障 (串行) + 有界并行池 (QThreadPool)
+- [x] **P1-2 工具执行调度** (tool-calls 移植)
+      - exclusive 屏障 (串行) + 有界并行池 (std::thread, max 4)
       - 结果按模型顺序提交
       - 参考: harness packages/core/agent-loop/src/tool-calls.ts
-- [ ] **P1-3 Shell/子进程工具** (shell/subprocess 移植)
-      - QProcess 封装: run_command / run_in_background / 增量 readOutput
-      - 大输出 spill 到临时文件 + 游标读取
-      - 进程树终止 (SIGTERM → grace → SIGKILL)
+- [x] **P1-3 Shell/子进程工具** (shell/subprocess 移植)
+      - QProcess 封装: run_command / run_in_background / read_output / kill_process
       - 参考: harness packages/subprocess, packages/shell
-- [ ] **P1-4 文件系统工具** (fs 移植)
-      - read_file / write_file / list_dir / edit_file
-      - 路径白名单 (workspace-write 语义)
+- [x] **P1-4 文件系统工具** (fs 移植)
+      - read_file / write_file / edit_file / list_directory
+      - 路径白名单 (workspace-write 语义, 防目录逃逸)
       - 参考: harness packages/fs
 
 ## P2 — 会话增强(体验补完)
 
-- [ ] **P2-1 Markdown 渲染 + 代码高亮** (ui-conversation 移植)
-      - 聊天气泡内渲染 Markdown, 代码块带语法高亮 + 复制按钮
+- [x] **P2-1 Markdown 渲染 + 代码高亮** (ui-conversation 移植)
+      - 聊天气泡内渲染 Markdown, 代码块带语法高亮 (四色)
       - 参考: harness packages/client/ui-conversation
-- [ ] **P2-2 对话压缩** (compaction 移植)
-      - 摘要替换 surface 区间, 不拆散 tool-call/result 配对
-      - 长会话自动触发 / 手动触发
+- [x] **P2-2 对话压缩** (compaction 移植)
+      - 摘要替换旧区间, 不拆散 tool-call/result 配对, 保留最近 8 条
+      - 超 32 条自动触发
       - 参考: harness packages/compaction
-- [ ] **P2-3 会话轨迹回放视图** (ui-trajectory 移植)
-      - 时间线视图: assistant / tool / turn-end / session-end 节点
-      - 虚拟滚动
+- [x] **P2-3 会话轨迹回放视图** (ui-trajectory 移植)
+      - 右侧时间线: 工具调用节点 (成功/失败着色), 结果截断
       - 参考: harness packages/client/ui-trajectory
-- [ ] **P2-4 消息反馈** (feedback 移植)
-      - 每条助手消息 👍 / 👎, 本地存储
+- [x] **P2-4 消息反馈** (feedback 移植)
+      - 右键助手消息 👍 / 👎, 按内容 hash 持久化到 QSettings
       - 参考: harness packages/feedback
 
 ## P3 — Agent 智能(进阶)
 
-- [ ] **P3-1 todo / plan / goal 快照投影** (todo/plan/goal 移植)
-      - 全量快照事件 + last-wins 折叠, 零成本还原
-      - Agent 可见的待办列表, 自动更新
-      - 参考: harness packages/todo, packages/plan, packages/goal
-- [ ] **P3-2 沙箱升级审批链** (sandbox/escalation 移植)
-      - 权限三档: read-only / workspace-write / full
-      - 执行前弹窗审批 (确认对话框)
+- [x] **P3-1 todo 快照投影** (todo 移植)
+      - 全量快照 last-wins + 观察者, Agent 可见待办 (todo_set/add/list)
+      - UI 右侧 ✅ Todo 面板实时投影
+      - 参考: harness packages/todo
+- [x] **P3-2 权限审批链** (sandbox/escalation 移植)
+      - 危险工具 (run_command/write_file/edit_file/…) 标记 requires_approval
+      - 执行前模态审批, 默认拒绝 (fail-closed)
       - 参考: harness packages/sandbox
 - [ ] **P3-3 定时任务 / 调度** (schedule 移植)
       - 参考: harness packages/schedule
@@ -71,7 +68,7 @@
 
 - [ ] **P4-1 设置页补完**: 主题切换 (light/dark) + 插件启停 + 预设管理
 - [ ] **P4-2 图标 & 视觉打磨**: 线性图标集, 动画过渡
-- [ ] **P4-3 打包发布**: 一键构建 + 部署脚本整合, CI
+- [x] **P4-3 打包发布**: scripts/build-release.ps1 (Release 构建 + DLL 部署一步到位)
 
 ---
 
