@@ -126,8 +126,12 @@ void ChatViewModel::send(const std::string& input) {
     if (input.empty() || running_) return;
 
     // Settings dialog writes these env vars on save; pick up any updates.
+    // When unset, fall back to the localized default so the model gets a
+    // prompt in the user's language even before they open Settings.
     if (const char* p = std::getenv("ARIA_LLM_SYSTEM_PROMPT"); p && *p) {
         engine_.set_system_prompt(p);
+    } else {
+        engine_.set_system_prompt(agent::i18n::str("default_system_prompt"));
     }
 
     running_ = true;

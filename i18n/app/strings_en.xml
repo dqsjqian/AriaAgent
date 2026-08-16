@@ -9,8 +9,13 @@
 
     <!-- sidebar -->
     <string name="new_chat">＋ New chat</string>
+    <string name="new_chat_default">New chat</string>
     <string name="settings">⚙ Settings</string>
     <string name="delete_session">Delete session</string>
+
+    <!-- default system prompt (shown in Settings -> General and used
+         when ARIA_LLM_SYSTEM_PROMPT is unset) -->
+    <string name="default_system_prompt">You are a helpful assistant. You may call tools to answer questions. Reason step by step and always tell the user what you found.</string>
 
     <!-- top bar -->
     <string name="workspace">work</string>

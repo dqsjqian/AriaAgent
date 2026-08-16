@@ -103,7 +103,7 @@ void SettingsDialog::build_general_page(QStackedWidget* stack) {
 
     prompt_edit_ = new QLineEdit(card);
     prompt_edit_->setText(env_or("ARIA_LLM_SYSTEM_PROMPT",
-        QStringLiteral("You are a helpful assistant. You may call tools to answer questions.")));
+        QString::fromStdString(agent::i18n::str("default_system_prompt"))));
 
     theme_combo_ = new QComboBox(card);
     theme_combo_->addItems({
