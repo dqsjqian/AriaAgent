@@ -5,7 +5,7 @@
     <string name="app_name">AriaAgent</string>
     <string name="window_title">AriaAgent</string>
     <string name="harness_tag">HARNESS</string>
-    <string name="app_subtitle">● AriaAgent · LLM Agent Tool Framework</string>
+    <string name="app_subtitle">● AriaAgent · LLM 智能体工具框架</string>
 
     <!-- sidebar -->
     <string name="new_chat">＋ 新对话</string>
@@ -13,9 +13,9 @@
     <string name="delete_session">删除会话</string>
 
     <!-- top bar -->
-    <string name="workspace">work</string>
+    <string name="workspace">工作区</string>
     <string name="trajectory">🕒 轨迹</string>
-    <string name="todo">✅ Todo</string>
+    <string name="todo">✅ 待办</string>
     <string name="panel_title">工具面板</string>
     <string name="collapse_panel">收起面板</string>
 
@@ -29,24 +29,24 @@
     <string name="attach_all_files">所有文件 (*.*)</string>
 
     <!-- workspace modes -->
-    <string name="ws_read_only">🔒 Read Only</string>
-    <string name="ws_workspace_write">🛠 Workspace Write</string>
-    <string name="ws_full_access">🔓 Full Access</string>
-    <string name="ws_tooltip">工作区权限 (Read Only / Workspace Write / Full Access)</string>
+    <string name="ws_read_only">🔒 只读</string>
+    <string name="ws_workspace_write">🛠 工作区写入</string>
+    <string name="ws_full_access">🔓 完全访问</string>
+    <string name="ws_tooltip">工作区权限 (只读 / 工作区写入 / 完全访问)</string>
 
     <!-- phases -->
-    <string name="phase_thinking">thinking…</string>
-    <string name="phase_tooling">tooling…</string>
-    <string name="phase_compacting">compacting…</string>
+    <string name="phase_thinking">思考中…</string>
+    <string name="phase_tooling">工具调用中…</string>
+    <string name="phase_compacting">压缩中…</string>
     <string name="phase_error">⚠ 出错</string>
 
     <!-- messages -->
-    <string name="msg_user">You</string>
+    <string name="msg_user">我</string>
     <string name="msg_agent">AriaAgent</string>
     <string name="msg_tool">Tool</string>
-    <string name="msg_tool_prefix">Tool · </string>
-    <string name="msg_error_prefix">⚠ Error: </string>
-    <string name="msg_compacted">[Compacted conversation summary] </string>
+    <string name="msg_tool_prefix">工具 · </string>
+    <string name="msg_error_prefix">⚠ 错误: </string>
+    <string name="msg_compacted">[对话压缩摘要] </string>
 
     <!-- feedback -->
     <string name="feedback_helpful">👍 有帮助</string>
@@ -66,7 +66,7 @@
     <string name="cancel">取消</string>
 
     <!-- general page -->
-    <string name="gen_system_prompt">System Prompt</string>
+    <string name="gen_system_prompt">系统提示词</string>
     <string name="gen_appearance">外观</string>
     <string name="gen_theme_follow">跟随系统</string>
     <string name="gen_theme_light">浅色</string>
@@ -80,9 +80,9 @@
     <string name="lang_en">English</string>
 
     <!-- model page -->
-    <string name="model_base_url">API 地址 (Base URL)</string>
+    <string name="model_base_url">API 接口地址</string>
     <string name="model_api_key">API 密钥</string>
-    <string name="model_name">模型 (Model)</string>
+    <string name="model_name">模型名称</string>
     <string name="model_hint">任何 OpenAI 兼容端点皆可: DeepSeek · OpenAI · Kimi · Qwen · GLM …\n换厂商只需改 API 地址与模型名,无需重新编译。</string>
 
     <!-- plugins page -->
