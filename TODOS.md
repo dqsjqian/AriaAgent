@@ -8,7 +8,7 @@
 - [x] **P0-1 项目骨架**: CMake + Aria submodule + Qt6 + OpenAI 兼容 LLM 客户端 + 真流式 SSE
 - [x] **P0-2 DeepSeek 风格 UI**: 侧边栏 + 气泡聊天 + 输入栏 + 设置对话框
 - [x] **P0-3 DLL 部署脚本**: windeployqt + 递归依赖拷贝 (scripts/deploy-dlls.ps1)
-- [ ] **P0-4 会话持久化 + 多会话管理** (session + ui-sidebar 移植)
+- [x] **P0-4 会话持久化 + 多会话管理** (session + ui-sidebar 移植)
       - 追加式事件日志 = 唯一事实源 (seq 序列号)
       - 多会话列表: 新建 / 切换 / 删除, JSON 持久化
       - 重启后自动恢复上次会话

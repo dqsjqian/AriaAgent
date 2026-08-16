@@ -8,6 +8,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "agent/json_schema.hpp"
 #include "agent/model.hpp"
 
 namespace agent {
@@ -24,6 +25,9 @@ public:
 
     // Schema array for the OpenAI "tools" request field.
     nlohmann::json schema() const;
+
+    // Whether a tool may run concurrently with others (unknown → false).
+    bool is_concurrency_safe(const std::string& name) const;
 
 private:
     std::vector<Tool> tools_;

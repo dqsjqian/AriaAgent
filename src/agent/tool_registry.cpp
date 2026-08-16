@@ -21,12 +21,24 @@ std::optional<json> ToolRegistry::run(const std::string& name,
     auto it = index_.find(name);
     if (it == index_.end()) return std::nullopt;
     const Tool& t = tools_[it->second];
+
+    // Validate args against the tool's JSON schema (path-qualified errors).
+    auto violations = validate_json_schema(args, t.parameters);
+    if (!violations.empty()) {
+        return json{{"error", violations_to_string(violations)}};
+    }
+
     if (!t.fn) return json{{"error", "tool has no implementation"}};
     return t.fn(args, ctx);
 }
 
-json ToolRegistry::schema() const {
-    json arr = json::array();
+bool ToolRegistry::is_concurrency_safe(const std::string& name) const {
+    auto it = index_.find(name);
+    if (it == index_.end()) return false;
+    return tools_[it->second].concurrency_safe;
+}
+
+json ToolRegistry::schema() const {    json arr = json::array();
     for (const auto& t : tools_) {
         arr.push_back({
             {"type", "function"},
@@ -87,12 +99,14 @@ void register_builtin_tools(ToolRegistry& reg) {
             }},
             {"required", json::array({"a","b","op"})}
         },
+        true,               // concurrency_safe
         tool_calculator
     });
     reg.register_tool({
         "current_time",
         "Return the current local date and time.",
         {{"type", "object"}, {"properties", json::object()}},
+        true,               // concurrency_safe
         tool_now
     });
 }
