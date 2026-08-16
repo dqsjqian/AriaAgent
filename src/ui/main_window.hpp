@@ -10,6 +10,7 @@ class QTextEdit;
 class QPushButton;
 class QLabel;
 class QListWidget;
+class QStackedWidget;
 
 class ChatViewModel;
 
@@ -23,6 +24,8 @@ private:
     void on_stop();
     void on_new_chat();
     void scroll_bottom();
+    void toggle_trajectory();
+    void show_message_menu(const QPoint& pos);
 
     ChatViewModel* vm_;
 
@@ -33,8 +36,11 @@ private:
 
     // chat area
     QListView*  chat_list_;
+    QListView*  trajectory_list_;
     QTextEdit*  input_;
     QPushButton* send_btn_;
+    QPushButton* traj_btn_;
     QLabel*     phase_label_;
     QLabel*     model_label_;
+    bool        trajectory_visible_{false};
 };

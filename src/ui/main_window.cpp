@@ -15,6 +15,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPainter>
+#include <QSettings>
 #include <QPainterPath>
 #include <QPushButton>
 #include <QScrollBar>
@@ -142,6 +143,72 @@ QVariant chat_data_fn(const UiMessage& m, int role) {
     }
 }
 
+// ── Trajectory delegate: timeline of tool calls ─────────────────────────────
+enum : int {
+    RoleToolName2 = Qt::UserRole + 10,
+    RoleToolArgs,
+    RoleToolResult,
+    RoleToolOk,
+};
+
+QVariant traj_data_fn(const UiToolCall& t, int role) {
+    switch (role) {
+        case RoleToolName2:  return QString::fromStdString(t.name);
+        case RoleToolArgs:   return QString::fromStdString(t.args);
+        case RoleToolResult: return QString::fromStdString(t.result);
+        case RoleToolOk:     return t.ok;
+        default: return {};
+    }
+}
+
+class TrajectoryDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    QSize sizeHint(const QStyleOptionViewItem& opt,
+                   const QModelIndex& idx) const override {
+        QFontMetrics fm(opt.font);
+        const int w = 320;
+        QString r = idx.data(RoleToolResult).toString();
+        if (r.size() > 80) r = r.left(77) + "…";
+        int lines = 1 + (static_cast<int>(r.size()) + 50) / 51;
+        return QSize(w, lines * fm.lineSpacing() + 40);
+    }
+
+    void paint(QPainter* p, const QStyleOptionViewItem& opt,
+               const QModelIndex& idx) const override {
+        p->save();
+        p->setRenderHint(QPainter::Antialiasing);
+        const QRect r = opt.rect.adjusted(4, 2, -4, -2);
+        const QString name = idx.data(RoleToolName2).toString();
+        const QString args = idx.data(RoleToolArgs).toString();
+        QString result = idx.data(RoleToolResult).toString();
+        const bool ok = idx.data(RoleToolOk).toBool();
+        if (result.size() > 100) result = result.left(97) + "…";
+
+        p->setPen(QPen(QColor("#2a2f3a"), 2));
+        p->drawLine(QPoint(r.left() + 8, r.top()), QPoint(r.left() + 8, r.bottom()));
+        p->setPen(Qt::NoPen);
+        p->setBrush(ok ? QColor("#3b82f6") : QColor("#e24b4a"));
+        p->drawEllipse(QPoint(r.left() + 8, r.top() + 10), 5, 5);
+
+        const int bx = r.left() + 22;
+        QFont bold = opt.font; bold.setBold(true);
+        p->setFont(bold);
+        p->setPen(QColor("#f1f5f9"));
+        p->drawText(QRect(bx, r.top() + 2, r.width() - 30, 18),
+                    Qt::AlignLeft, name + " " + args);
+
+        QFont normal = opt.font; normal.setPointSizeF(normal.pointSizeF() - 0.5);
+        p->setFont(normal);
+        p->setPen(ok ? QColor("#8b93a3") : QColor("#f09595"));
+        p->drawText(QRect(bx, r.top() + 22, r.width() - 30, r.height() - 24),
+                    Qt::AlignLeft | Qt::TextWordWrap, result);
+
+        p->restore();
+    }
+};
+
 } // namespace
 
 // ── MainWindow ──────────────────────────────────────────────────────────────
@@ -233,6 +300,9 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     phase_label_ = new QLabel(this);
     phase_label_->setObjectName(QStringLiteral("phase"));
 
+    traj_btn_ = new QPushButton(QStringLiteral("🕒 轨迹"), this);
+    traj_btn_->setCursor(Qt::PointingHandCursor);
+
     auto* top_bar = new QHBoxLayout;
     top_bar->setContentsMargins(0, 0, 0, 0);
     top_bar->setSpacing(10);
@@ -240,6 +310,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     top_bar->addSpacing(8);
     top_bar->addWidget(model_label_);
     top_bar->addStretch();
+    top_bar->addWidget(traj_btn_);
     top_bar->addWidget(phase_label_);
 
     chat_list_ = new QListView(this);
@@ -305,11 +376,28 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     auto* chat_w = new QWidget(this);
     chat_w->setLayout(chat);
 
+    // ── Trajectory panel (collapsible, right side) ────────────────────────
+    trajectory_list_ = new QListView(this);
+    trajectory_list_->setModel(new aria::adapters::qt6::ObservableListModel<UiToolCall>(
+        vm_->tool_trace,
+        QHash<int,QByteArray>{{RoleToolName2,"name"},{RoleToolArgs,"args"},{RoleToolResult,"result"},{RoleToolOk,"ok"}},
+        traj_data_fn, trajectory_list_));
+    trajectory_list_->setItemDelegate(new TrajectoryDelegate(trajectory_list_));
+    trajectory_list_->setSelectionMode(QAbstractItemView::NoSelection);
+    trajectory_list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    trajectory_list_->setFocusPolicy(Qt::NoFocus);
+    trajectory_list_->setFixedWidth(340);
+    trajectory_list_->setStyleSheet(QStringLiteral(
+        "QListView { background:%1; border-left:1px solid %2; padding:10px; }")
+        .arg(kPanel, kBorder));
+    trajectory_list_->setVisible(false);   // hidden until toggled
+
     auto* root = new QHBoxLayout;
     root->setContentsMargins(0, 0, 0, 0);
     root->setSpacing(0);
     root->addWidget(sidebar_w);
     root->addWidget(chat_w, 1);
+    root->addWidget(trajectory_list_);
     auto* root_w = new QWidget(this);
     root_w->setLayout(root);
     setCentralWidget(root_w);
@@ -317,10 +405,16 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     // ── Connections ────────────────────────────────────────────────────────
     connect(send_btn_, &QPushButton::clicked, this, &MainWindow::on_send);
     connect(new_chat_btn_, &QPushButton::clicked, this, &MainWindow::on_new_chat);
+    connect(traj_btn_, &QPushButton::clicked, this, &MainWindow::toggle_trajectory);
     connect(settings_btn_, &QPushButton::clicked, this, [this] {
         SettingsDialog dlg(this);
         dlg.exec();   // modal; save() persists to QSettings + env
     });
+
+    // Right-click a chat message → feedback menu (P2-4).
+    chat_list_->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(chat_list_, &QListView::customContextMenuRequested,
+            this, &MainWindow::show_message_menu);
 
     // Session list: click to switch, context menu to delete.
     connect(session_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
@@ -388,6 +482,35 @@ void MainWindow::on_stop() {
 void MainWindow::on_new_chat() {
     vm_->new_session();   // creates + switches; sessionChanged refreshes sidebar
     phase_label_->setText(QStringLiteral(""));
+}
+
+void MainWindow::toggle_trajectory() {
+    trajectory_visible_ = !trajectory_visible_;
+    trajectory_list_->setVisible(trajectory_visible_);
+    traj_btn_->setStyleSheet(trajectory_visible_
+        ? QStringLiteral("background:#3b82f6; color:white; border-radius:8px; padding:6px 12px;")
+        : QString());
+}
+
+void MainWindow::show_message_menu(const QPoint& pos) {
+    const QModelIndex idx = chat_list_->indexAt(pos);
+    if (!idx.isValid()) return;
+    const QString author = idx.data(RoleAuthor).toString();
+    const bool isUser = author == "You";
+    if (isUser) return;   // feedback is for assistant/tool messages
+
+    const QString text = idx.data(RoleText).toString();
+    QMenu menu(this);
+    auto* good = menu.addAction(QStringLiteral("👍 有帮助"));
+    auto* bad  = menu.addAction(QStringLiteral("👎 没帮助"));
+    QAction* chosen = menu.exec(chat_list_->mapToGlobal(pos));
+    if (!chosen) return;
+
+    // Persist per-message feedback (keyed by a content hash) — P2-4.
+    const QString key = QString::number(qHash(text), 16);
+    QSettings s("AriaAgent", "AriaAgent");
+    if (chosen == good)      s.setValue("feedback/" + key, "up");
+    else if (chosen == bad)  s.setValue("feedback/" + key, "down");
 }
 
 void MainWindow::scroll_bottom() {
