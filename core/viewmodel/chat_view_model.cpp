@@ -1,6 +1,8 @@
 // AriaAgent — ChatViewModel implementation (framework-agnostic core).
 #include "viewmodel/chat_view_model.hpp"
 
+#include "i18n/I18n.h"
+
 #include <aria/runtime/dispatcher.hpp>
 
 #include <cstdlib>
@@ -89,7 +91,7 @@ void ChatViewModel::switch_session(const std::string& id) {
                     tool_trace.push_back(std::make_shared<UiToolCall>(
                         UiToolCall{tc.name, tc.args, "", true}));
                     messages.push_back(std::make_shared<UiMessage>(
-                        UiMessage{agent::Role::Tool, "Tool · " + tc.name,
+                        UiMessage{agent::Role::Tool, agent::i18n::str("msg_tool_prefix") + tc.name,
                                   tc.args, true, tc.name}));
                 }
                 if (!m.content.empty()) {
@@ -130,7 +132,7 @@ void ChatViewModel::send(const std::string& input) {
 
     running_ = true;
     busy = true;
-    phase_text = "thinking…";
+    phase_text = agent::i18n::str("phase_thinking");
 
     // User message goes into the shared log (multi-turn context).
     history_.push_back({agent::Role::User, input, {}, "", "", false});
@@ -158,7 +160,7 @@ void ChatViewModel::send(const std::string& input) {
         cb.on_tool_call = [this](const agent::ToolCallRecord& rec) {
             post_to_ui([this, rec] {
                 if (stop_) return;
-                phase_text = "tooling… (" + rec.name + ")";
+                phase_text = agent::i18n::str("phase_tooling") + " (" + rec.name + ")";
                 UiToolCall tc{rec.name, rec.args, rec.result, rec.succeeded};
                 push_tool(tc);
             });
@@ -167,8 +169,8 @@ void ChatViewModel::send(const std::string& input) {
             post_to_ui([this, p] {
                 if (stop_) return;
                 switch (p) {
-                    case agent::AgentPhase::Thinking:  phase_text = "thinking…"; break;
-                    case agent::AgentPhase::Tooling:   phase_text = "tooling…";  break;
+                    case agent::AgentPhase::Thinking:  phase_text = agent::i18n::str("phase_thinking"); break;
+                    case agent::AgentPhase::Tooling:   phase_text = agent::i18n::str("phase_tooling");  break;
                     default:                           phase_text = "";          break;
                 }
             });
@@ -238,11 +240,11 @@ void ChatViewModel::finalize_success() {
 
 void ChatViewModel::finalize_error(const std::string& err) {
     if (streaming_row_) {
-        streaming_row_->text = "⚠ Error: " + err;
+        streaming_row_->text = agent::i18n::str("msg_error_prefix") + err;
         messages.replace_at(messages.size() - 1, streaming_row_);
         streaming_row_.reset();
     } else {
-        push_assistant("⚠ Error: " + err);
+        push_assistant(agent::i18n::str("msg_error_prefix") + err);
     }
     running_ = false;
     busy = false;
@@ -291,7 +293,7 @@ void ChatViewModel::maybe_compact() {
     for (size_t i = 1; i < cut; ++i) prefix.push_back(history_[i]);
 
     const std::string old_phase = phase_text.get();
-    phase_text = "compacting…";
+    phase_text = agent::i18n::str("phase_compacting");
 
     worker_ = std::make_unique<std::thread>([this, prefix, cut, old_phase] {
         std::string summary;
@@ -308,7 +310,7 @@ void ChatViewModel::maybe_compact() {
             agent::MessageList compacted;
             compacted.push_back(history_.front());
             compacted.push_back({agent::Role::System,
-                "[Compacted conversation summary] " + summary, {}, "", "", false});
+                agent::i18n::str("msg_compacted") + summary, {}, "", "", false});
             for (size_t i = cut; i < history_.size(); ++i)
                 compacted.push_back(history_[i]);
             history_ = std::move(compacted);
@@ -330,7 +332,7 @@ void ChatViewModel::maybe_compact() {
                     } else {
                         for (const auto& tc : m.tool_calls)
                             messages.push_back(std::make_shared<UiMessage>(
-                                UiMessage{agent::Role::Tool, "Tool · " + tc.name,
+                                UiMessage{agent::Role::Tool, agent::i18n::str("msg_tool_prefix") + tc.name,
                                           tc.args, true, tc.name}));
                         if (!m.content.empty())
                             messages.push_back(std::make_shared<UiMessage>(
@@ -356,6 +358,6 @@ void ChatViewModel::push_assistant(const std::string& text) {
 void ChatViewModel::push_tool(const UiToolCall& tc) {
     tool_trace.push_back(std::make_shared<UiToolCall>(tc));
     messages.push_back(std::make_shared<UiMessage>(
-        UiMessage{agent::Role::Tool, "Tool · " + tc.name,
+        UiMessage{agent::Role::Tool, agent::i18n::str("msg_tool_prefix") + tc.name,
                   tc.args + "  →  " + tc.result, true, tc.name}));
 }

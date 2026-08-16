@@ -14,8 +14,8 @@ set(CPPHTTPLIB_DIR ${ARIA_DIR}/third_party/cpp-httplib)
 
 find_package(OpenSSL REQUIRED)   # HTTPS transport for the LLM client
 
-# ── ariaagent_core: engine + tools ───────────────────────────────────────────────
-file(GLOB CORE_SRC CONFIGURE_DEPENDS agent/*.cpp)
+# ── ariaagent_core: engine + tools + i18n ──────────────────────────────────
+file(GLOB CORE_SRC CONFIGURE_DEPENDS agent/*.cpp i18n/*.cpp)
 add_library(ariaagent_core STATIC ${CORE_SRC})
 target_include_directories(ariaagent_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}

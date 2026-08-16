@@ -4,6 +4,8 @@
 #include "main_window.hpp"
 #include "theme.hpp"
 
+#include "i18n/I18n.h"
+
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFile>
@@ -37,16 +39,16 @@ QString env_or(const char* name, const QString& fallback) {
 } // namespace
 
 SettingsDialog::SettingsDialog(QWidget* parent, int initialPage) : QDialog(parent) {
-    setWindowTitle(QStringLiteral("设置 — AriaAgent"));
+    setWindowTitle(QString::fromStdString(agent::i18n::str("settings_title")));
     resize(720, 520);
 
     nav_ = new QListWidget(this);
     nav_->setFixedWidth(170);
     nav_->addItems({
-        QStringLiteral("⚙ 通用"),
-        QStringLiteral("◈ 模型"),
-        QStringLiteral("🧩 插件"),
-        QStringLiteral("✦ Agent 预设"),
+        QString::fromStdString(agent::i18n::str("nav_general")),
+        QString::fromStdString(agent::i18n::str("nav_model")),
+        QString::fromStdString(agent::i18n::str("nav_plugins")),
+        QString::fromStdString(agent::i18n::str("nav_presets")),
     });
     nav_->setStyleSheet(QStringLiteral(
         "QListWidget { background:%1; border:none; border-radius:10px; padding:8px; }"
@@ -67,10 +69,10 @@ SettingsDialog::SettingsDialog(QWidget* parent, int initialPage) : QDialog(paren
             stack_, &QStackedWidget::setCurrentIndex);
     nav_->setCurrentRow(initialPage);   // jump straight to the requested page (default: Model)
 
-    auto* save_btn = new QPushButton(QStringLiteral("保存"), this);
+    auto* save_btn = new QPushButton(QString::fromStdString(agent::i18n::str("save")), this);
     save_btn->setObjectName(QStringLiteral("primary"));
     save_btn->setCursor(Qt::PointingHandCursor);
-    auto* cancel_btn = new QPushButton(QStringLiteral("取消"), this);
+    auto* cancel_btn = new QPushButton(QString::fromStdString(agent::i18n::str("cancel")), this);
     cancel_btn->setCursor(Qt::PointingHandCursor);
 
     auto* btns = new QHBoxLayout;
@@ -104,21 +106,40 @@ void SettingsDialog::build_general_page(QStackedWidget* stack) {
         QStringLiteral("You are a helpful assistant. You may call tools to answer questions.")));
 
     theme_combo_ = new QComboBox(card);
-    theme_combo_->addItems({QStringLiteral("跟随系统"), QStringLiteral("浅色"), QStringLiteral("深色")});
+    theme_combo_->addItems({
+        QString::fromStdString(agent::i18n::str("gen_theme_follow")),
+        QString::fromStdString(agent::i18n::str("gen_theme_light")),
+        QString::fromStdString(agent::i18n::str("gen_theme_dark")),
+    });
     {
         QSettings s(kSettingsOrg, kSettingsApp);
         theme_combo_->setCurrentIndex(s.value("theme", 2).toInt());
     }
 
-    enter_combo_ = new QComboBox(card);
-    enter_combo_->addItems({QStringLiteral("Enter 发送"), QStringLiteral("Ctrl+Enter 发送")});
+    lang_combo_ = new QComboBox(card);
+    lang_combo_->addItem(QString::fromStdString(agent::i18n::str("lang_zh")), QStringLiteral("zh-CN"));
+    lang_combo_->addItem(QStringLiteral("English"),   QStringLiteral("en"));
+    {
+        QSettings s(kSettingsOrg, kSettingsApp);
+        const QString cur = s.value("language", "zh-CN").toString();
+        const int idx = lang_combo_->findData(cur);
+        lang_combo_->setCurrentIndex(idx >= 0 ? idx : 0);
+    }
 
-    stream_check_ = new QCheckBox(QStringLiteral("流式输出 (token-by-token)"), card);
+    enter_combo_ = new QComboBox(card);
+    enter_combo_->addItems({
+        QString::fromStdString(agent::i18n::str("gen_enter_send")),
+        QString::fromStdString(agent::i18n::str("gen_ctrl_enter")),
+    });
+
+    stream_check_ = new QCheckBox(
+        QString::fromStdString(agent::i18n::str("gen_streaming")), card);
     stream_check_->setChecked(true);
 
-    form->addRow(QStringLiteral("System Prompt"), prompt_edit_);
-    form->addRow(QStringLiteral("外观"), theme_combo_);
-    form->addRow(QStringLiteral("回车行为"), enter_combo_);
+    form->addRow(QString::fromStdString(agent::i18n::str("gen_system_prompt")), prompt_edit_);
+    form->addRow(QString::fromStdString(agent::i18n::str("gen_language")), lang_combo_);
+    form->addRow(QString::fromStdString(agent::i18n::str("gen_appearance")), theme_combo_);
+    form->addRow(QString::fromStdString(agent::i18n::str("gen_enter_behavior")), enter_combo_);
     form->addRow(QString(), stream_check_);
 
     stack->addWidget(card);
@@ -146,9 +167,9 @@ void SettingsDialog::build_model_page(QStackedWidget* stack) {
     model_edit_->setText(s.value("model",
         env_or("ARIA_LLM_MODEL", QStringLiteral("deepseek-chat"))).toString());
 
-    form->addRow(QStringLiteral("API 地址 (Base URL)"), base_url_edit_);
-    form->addRow(QStringLiteral("API 密钥"), api_key_edit_);
-    form->addRow(QStringLiteral("模型 (Model)"), model_edit_);
+    form->addRow(QString::fromStdString(agent::i18n::str("model_base_url")), base_url_edit_);
+    form->addRow(QString::fromStdString(agent::i18n::str("model_api_key")), api_key_edit_);
+    form->addRow(QString::fromStdString(agent::i18n::str("model_name")), model_edit_);
 
     auto* hint = new QLabel(QStringLiteral(
         "任何 OpenAI 兼容端点皆可: DeepSeek · OpenAI · Kimi · Qwen · GLM …\n"
@@ -169,7 +190,7 @@ void SettingsDialog::build_plugins_page(QStackedWidget* stack) {
     auto make_plugin = [&](const QString& name, const QString& desc, bool checked) {
         auto* box = new QGroupBox(name, card);
         auto* bv = new QVBoxLayout(box);
-        auto* cb = new QCheckBox(QStringLiteral("启用"), box);
+        auto* cb = new QCheckBox(QString::fromStdString(agent::i18n::str("plugins_enable")), box);
         cb->setChecked(checked);
         auto* lab = new QLabel(desc, box);
         lab->setWordWrap(true);
@@ -179,10 +200,10 @@ void SettingsDialog::build_plugins_page(QStackedWidget* stack) {
         v->addWidget(box);
     };
 
-    make_plugin(QStringLiteral("计算器 (calculator)"),
-                QStringLiteral("四则运算 / 幂运算,可回答数学计算问题。"), true);
-    make_plugin(QStringLiteral("当前时间 (current_time)"),
-                QStringLiteral("返回本地当前日期与时间。"), true);
+    make_plugin(QString::fromStdString(agent::i18n::str("plugins_calculator")),
+                QString::fromStdString(agent::i18n::str("plugins_calculator_desc")), true);
+    make_plugin(QString::fromStdString(agent::i18n::str("plugins_time")),
+                QString::fromStdString(agent::i18n::str("plugins_time_desc")), true);
 
     auto* hint = new QLabel(QStringLiteral(
         "内置工具在 src/agent/tool_registry.cpp 注册,\n"
@@ -203,9 +224,9 @@ void SettingsDialog::build_presets_page(QStackedWidget* stack) {
 
     preset_combo_ = new QComboBox(card);
     preset_combo_->addItems({
-        QStringLiteral("标准模式 — 平衡速度与能力,适合日常对话"),
-        QStringLiteral("创造模式 — 鼓励发散性回答,适合创意写作"),
-        QStringLiteral("极简模式 — 最快响应,最小开销,适合简单问答"),
+        QString::fromStdString(agent::i18n::str("preset_standard")),
+        QString::fromStdString(agent::i18n::str("preset_creative")),
+        QString::fromStdString(agent::i18n::str("preset_minimal")),
     });
     {
         QSettings s(kSettingsOrg, kSettingsApp);
@@ -235,6 +256,10 @@ void SettingsDialog::save() {
     s.setValue("system_prompt", prompt_edit_->text());
     s.setValue("theme", theme_combo_->currentIndex());
     if (preset_combo_) s.setValue("preset", preset_combo_->currentIndex());
+    if (lang_combo_) {
+        s.setValue("language", lang_combo_->currentData().toString());
+        agent::i18n::set_language(lang_combo_->currentData().toString().toStdString());
+    }
 
     // Make the config visible to create_llm_client() at next run.
     qputenv("ARIA_LLM_BASE_URL", base_url_edit_->text().trimmed().toUtf8());

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AriaAgent UI strings — English -->
+<resources>
+    <!-- app / window -->
+    <string name="app_name">AriaAgent</string>
+    <string name="window_title">AriaAgent</string>
+    <string name="harness_tag">HARNESS</string>
+    <string name="app_subtitle">● AriaAgent · LLM Agent Tool Framework</string>
+
+    <!-- sidebar -->
+    <string name="new_chat">＋ New chat</string>
+    <string name="settings">⚙ Settings</string>
+    <string name="delete_session">Delete session</string>
+
+    <!-- top bar -->
+    <string name="workspace">work</string>
+    <string name="trajectory">🕒 Trace</string>
+    <string name="todo">✅ Todo</string>
+    <string name="panel_title">Tool panel</string>
+    <string name="collapse_panel">Collapse panel</string>
+
+    <!-- input bar -->
+    <string name="input_placeholder">Message AriaAgent…  Enter to send · Shift+Enter for newline</string>
+    <string name="attach_tooltip">Attach / Tools</string>
+    <string name="send">Send</string>
+    <string name="stop">Stop</string>
+    <string name="attach">Attach</string>
+    <string name="attach_dialog_title">Select attachment</string>
+    <string name="attach_all_files">All files (*.*)</string>
+
+    <!-- workspace modes -->
+    <string name="ws_read_only">🔒 Read Only</string>
+    <string name="ws_workspace_write">🛠 Workspace Write</string>
+    <string name="ws_full_access">🔓 Full Access</string>
+    <string name="ws_tooltip">Workspace permission (Read Only / Workspace Write / Full Access)</string>
+
+    <!-- phases -->
+    <string name="phase_thinking">thinking…</string>
+    <string name="phase_tooling">tooling…</string>
+    <string name="phase_compacting">compacting…</string>
+    <string name="phase_error">⚠ Error</string>
+
+    <!-- messages -->
+    <string name="msg_user">You</string>
+    <string name="msg_agent">AriaAgent</string>
+    <string name="msg_tool">Tool</string>
+    <string name="msg_tool_prefix">Tool · </string>
+    <string name="msg_error_prefix">⚠ Error: </string>
+    <string name="msg_compacted">[Compacted conversation summary] </string>
+
+    <!-- feedback -->
+    <string name="feedback_helpful">👍 Helpful</string>
+    <string name="feedback_not_helpful">👎 Not helpful</string>
+
+    <!-- approval dialog -->
+    <string name="approve_title">Approve tool</string>
+    <string name="approve_body">The agent requests permission for a tool:\n\n&lt;b&gt;%1&lt;/b&gt;\n&lt;pre&gt;%2&lt;/pre&gt;\n\nAllow?</string>
+
+    <!-- settings dialog -->
+    <string name="settings_title">Settings — AriaAgent</string>
+    <string name="nav_general">⚙ General</string>
+    <string name="nav_model">◈ Model</string>
+    <string name="nav_plugins">🧩 Plugins</string>
+    <string name="nav_presets">✦ Agent Presets</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- general page -->
+    <string name="gen_system_prompt">System Prompt</string>
+    <string name="gen_appearance">Appearance</string>
+    <string name="gen_theme_follow">Follow system</string>
+    <string name="gen_theme_light">Light</string>
+    <string name="gen_theme_dark">Dark</string>
+    <string name="gen_enter_behavior">Enter behavior</string>
+    <string name="gen_enter_send">Enter sends</string>
+    <string name="gen_ctrl_enter">Ctrl+Enter sends</string>
+    <string name="gen_streaming">Streaming output (token-by-token)</string>
+    <string name="gen_language">Language</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+
+    <!-- model page -->
+    <string name="model_base_url">API base URL</string>
+    <string name="model_api_key">API key</string>
+    <string name="model_name">Model</string>
+    <string name="model_hint">Any OpenAI-compatible endpoint works: DeepSeek · OpenAI · Kimi · Qwen · GLM …\nSwitch providers by changing the base URL and model name — no recompile.</string>
+
+    <!-- plugins page -->
+    <string name="plugins_enable">Enable</string>
+    <string name="plugins_calculator">Calculator (calculator)</string>
+    <string name="plugins_calculator_desc">Arithmetic / power, answers math questions.</string>
+    <string name="plugins_time">Current time (current_time)</string>
+    <string name="plugins_time_desc">Returns the current local date and time.</string>
+    <string name="plugins_hint">Built-in tools register in core/agent/tool_registry.cpp.\nAdd a tool by implementing Tool{{name, desc, schema, fn}} and register_tool.</string>
+
+    <!-- presets page -->
+    <string name="preset_standard">Standard — balanced speed and capability, for daily chat</string>
+    <string name="preset_creative">Creative — encourages divergent answers, for creative writing</string>
+    <string name="preset_minimal">Minimal — fastest responses, lowest overhead, for simple Q&amp;A</string>
+    <string name="presets_hint">Presets adjust the agent's system prompt and behavior:\n· Standard — keep the default prompt\n· Creative — inject a "think divergently, explore boldly" guide\n· Minimal — use a compact prompt to reduce token cost</string>
+</resources>

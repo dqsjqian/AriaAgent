@@ -38,6 +38,7 @@ private:
     // general page
     QLineEdit*  prompt_edit_;
     QComboBox*  theme_combo_;
+    QComboBox*  lang_combo_;
     QComboBox*  enter_combo_;
     QCheckBox*  stream_check_;
 

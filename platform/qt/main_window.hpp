@@ -26,6 +26,10 @@ public:
     // Settings dialog after a theme change, and on first show).
     void apply_theme();
 
+    // Refresh all user-facing labels from the i18n table (called at startup
+    // and whenever the language changes).
+    void apply_language();
+
 private:
     void on_send();
     void on_stop();
@@ -70,4 +74,5 @@ private:
     // aria subscriptions into the VM (kept alive for the window's lifetime)
     aria::Subscription session_sub_;
     aria::Subscription error_sub_;
+    aria::Subscription lang_sub_;
 };

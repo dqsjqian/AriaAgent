@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AriaAgent 界面文案 — 简体中文 (默认语言) -->
+<resources>
+    <!-- app / window -->
+    <string name="app_name">AriaAgent</string>
+    <string name="window_title">AriaAgent</string>
+    <string name="harness_tag">HARNESS</string>
+    <string name="app_subtitle">● AriaAgent · LLM Agent Tool Framework</string>
+
+    <!-- sidebar -->
+    <string name="new_chat">＋ 新对话</string>
+    <string name="settings">⚙ 设置</string>
+    <string name="delete_session">删除会话</string>
+
+    <!-- top bar -->
+    <string name="workspace">work</string>
+    <string name="trajectory">🕒 轨迹</string>
+    <string name="todo">✅ Todo</string>
+    <string name="panel_title">工具面板</string>
+    <string name="collapse_panel">收起面板</string>
+
+    <!-- input bar -->
+    <string name="input_placeholder">给 AriaAgent 发送消息…  Enter 发送 · Shift+Enter 换行</string>
+    <string name="attach_tooltip">附件 / 工具</string>
+    <string name="send">发送</string>
+    <string name="stop">停止</string>
+    <string name="attach">附件</string>
+    <string name="attach_dialog_title">选择附件</string>
+    <string name="attach_all_files">所有文件 (*.*)</string>
+
+    <!-- workspace modes -->
+    <string name="ws_read_only">🔒 Read Only</string>
+    <string name="ws_workspace_write">🛠 Workspace Write</string>
+    <string name="ws_full_access">🔓 Full Access</string>
+    <string name="ws_tooltip">工作区权限 (Read Only / Workspace Write / Full Access)</string>
+
+    <!-- phases -->
+    <string name="phase_thinking">thinking…</string>
+    <string name="phase_tooling">tooling…</string>
+    <string name="phase_compacting">compacting…</string>
+    <string name="phase_error">⚠ 出错</string>
+
+    <!-- messages -->
+    <string name="msg_user">You</string>
+    <string name="msg_agent">AriaAgent</string>
+    <string name="msg_tool">Tool</string>
+    <string name="msg_tool_prefix">Tool · </string>
+    <string name="msg_error_prefix">⚠ Error: </string>
+    <string name="msg_compacted">[Compacted conversation summary] </string>
+
+    <!-- feedback -->
+    <string name="feedback_helpful">👍 有帮助</string>
+    <string name="feedback_not_helpful">👎 没帮助</string>
+
+    <!-- approval dialog -->
+    <string name="approve_title">确认执行工具</string>
+    <string name="approve_body">Agent 请求执行需要授权的工具:\n\n&lt;b&gt;%1&lt;/b&gt;\n&lt;pre&gt;%2&lt;/pre&gt;\n\n是否允许?</string>
+
+    <!-- settings dialog -->
+    <string name="settings_title">设置 — AriaAgent</string>
+    <string name="nav_general">⚙ 通用</string>
+    <string name="nav_model">◈ 模型</string>
+    <string name="nav_plugins">🧩 插件</string>
+    <string name="nav_presets">✦ Agent 预设</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+
+    <!-- general page -->
+    <string name="gen_system_prompt">System Prompt</string>
+    <string name="gen_appearance">外观</string>
+    <string name="gen_theme_follow">跟随系统</string>
+    <string name="gen_theme_light">浅色</string>
+    <string name="gen_theme_dark">深色</string>
+    <string name="gen_enter_behavior">回车行为</string>
+    <string name="gen_enter_send">Enter 发送</string>
+    <string name="gen_ctrl_enter">Ctrl+Enter 发送</string>
+    <string name="gen_streaming">流式输出 (token-by-token)</string>
+    <string name="gen_language">语言</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+
+    <!-- model page -->
+    <string name="model_base_url">API 地址 (Base URL)</string>
+    <string name="model_api_key">API 密钥</string>
+    <string name="model_name">模型 (Model)</string>
+    <string name="model_hint">任何 OpenAI 兼容端点皆可: DeepSeek · OpenAI · Kimi · Qwen · GLM …\n换厂商只需改 API 地址与模型名,无需重新编译。</string>
+
+    <!-- plugins page -->
+    <string name="plugins_enable">启用</string>
+    <string name="plugins_calculator">计算器 (calculator)</string>
+    <string name="plugins_calculator_desc">四则运算 / 幂运算,可回答数学计算问题。</string>
+    <string name="plugins_time">当前时间 (current_time)</string>
+    <string name="plugins_time_desc">返回本地当前日期与时间。</string>
+    <string name="plugins_hint">内置工具在 core/agent/tool_registry.cpp 注册,\n新增工具只需实现 Tool{{name, desc, schema, fn}} 并 register_tool。</string>
+
+    <!-- presets page -->
+    <string name="preset_standard">标准模式 — 平衡速度与能力,适合日常对话</string>
+    <string name="preset_creative">创造模式 — 鼓励发散性回答,适合创意写作</string>
+    <string name="preset_minimal">极简模式 — 最快响应,最小开销,适合简单问答</string>
+    <string name="presets_hint">预设会调整 Agent 的系统提示词与行为倾向:\n· 标准 —— 保持默认提示词\n· 创造 —— 注入「发散思考、勇于联想」的引导\n· 极简 —— 使用精简提示词,减少 token 开销</string>
+</resources>
