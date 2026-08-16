@@ -60,6 +60,11 @@ public:
         return run(m, cb);
     }
 
+    // Summarise a conversation prefix into a compact replacement message.
+    // Used by compaction to keep long sessions within the context window.
+    // Returns the summary text; throws on API error.
+    std::string summarize(const MessageList& prefix);
+
     // Override the system prompt (e.g. from settings/env) for subsequent runs.
     void set_system_prompt(std::string prompt) { cfg_.system_prompt = std::move(prompt); }
 
