@@ -32,3 +32,17 @@ endif()
 # copies from ${BuildDir}/bin) finds everything in one place.
 set_target_properties(aria_agent PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
+# ── Stage i18n resources next to the exe (and into .app bundles) ───────────
+set(ARIA_I18N_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../i18n)
+if(WIN32)
+    add_custom_command(TARGET aria_agent POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${ARIA_I18N_SRC_DIR}" "$<TARGET_FILE_DIR:aria_agent>/i18n"
+        VERBATIM)
+elseif(APPLE)
+    add_custom_command(TARGET aria_agent POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${ARIA_I18N_SRC_DIR}" "$<TARGET_BUNDLE_CONTENT_DIR:aria_agent>/Resources/i18n"
+        VERBATIM)
+endif()

@@ -7,6 +7,8 @@
 #include "settings_dialog.hpp"
 #include "theme.hpp"
 
+#include "i18n/I18n.h"
+
 #include "agent/todo_store.hpp"
 
 #include <QApplication>
@@ -108,7 +110,8 @@ public:
             QFont f = opt.font; f.setPointSizeF(f.pointSizeF() - 1.5);
             p->setFont(f);
             p->setPen(isTool ? QColor("#60a5fa") : QColor(g_theme.text_dim));
-            const QString head = isTool ? ("🛠 " + tool) : "AriaAgent";
+            const QString head = isTool ? (QString::fromStdString(agent::i18n::str("msg_tool_prefix")) + tool)
+                                          : QString::fromStdString(agent::i18n::str("msg_agent"));
             p->drawText(bx + 4, by, bw, 16, Qt::AlignLeft | Qt::AlignVCenter, head);
         }
         const int bubbleTop = by + headerH;
@@ -265,7 +268,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     // ── Sidebar ────────────────────────────────────────────────────────────
     auto* logo_box = new QHBoxLayout;
     logo_box->setSpacing(8);
-    auto* logo_lab = new QLabel(QStringLiteral("✦ AriaAgent"), this);
+    auto* logo_lab = new QLabel(QString::fromStdString(agent::i18n::str("app_name")), this);
     logo_lab->setStyleSheet(QStringLiteral("color:white; font-weight:700; font-size:16px;"));
     auto* tag_lab = new QLabel(QStringLiteral("HARNESS"), this);
     tag_lab->setStyleSheet(QStringLiteral("background:#3b82f6; color:white; font-size:10px;"
@@ -274,7 +277,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     logo_box->addWidget(tag_lab);
     logo_box->addStretch();
 
-    new_chat_btn_ = new QPushButton(QStringLiteral("＋ 新对话"), this);
+    new_chat_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("new_chat")), this);
     new_chat_btn_->setObjectName(QStringLiteral("primary"));
     new_chat_btn_->setCursor(Qt::PointingHandCursor);
     new_chat_btn_->setMinimumHeight(40);
@@ -290,7 +293,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         if (s.id == vm_->current_session_id()) session_list_->setCurrentItem(it);
     }
 
-    settings_btn_ = new QPushButton(QStringLiteral("⚙ 设置"), this);
+    settings_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("settings")), this);
     settings_btn_->setCursor(Qt::PointingHandCursor);
 
     auto* sidebar = new QVBoxLayout;
@@ -308,17 +311,17 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     sidebar_w->setLayout(sidebar);
 
     // ── Chat area: top bar + bubble list + input ──────────────────────────
-    auto* tag_ws = new QLabel(QStringLiteral("work"), this);
+    auto* tag_ws = new QLabel(QString::fromStdString(agent::i18n::str("workspace")), this);
     tag_ws->setObjectName(QStringLiteral("workspaceTag"));
 
-    model_label_ = new QLabel(QStringLiteral("● AriaAgent · LLM Agent Tool Framework"), this);
+    model_label_ = new QLabel(QString::fromStdString(agent::i18n::str("app_subtitle")), this);
 
     phase_label_ = new QLabel(this);
     phase_label_->setObjectName(QStringLiteral("phase"));
 
-    traj_btn_ = new QPushButton(QStringLiteral("🕒 轨迹"), this);
+    traj_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("trajectory")), this);
     traj_btn_->setCursor(Qt::PointingHandCursor);
-    todo_btn_ = new QPushButton(QStringLiteral("✅ Todo"), this);
+    todo_btn_ = new QPushButton(QString::fromStdString(agent::i18n::str("todo")), this);
     todo_btn_->setCursor(Qt::PointingHandCursor);
 
     auto* top_bar = new QHBoxLayout;
@@ -347,23 +350,23 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     // ── Input bar: DeepSeek-style big rounded box with tools left, model + send right ──
     input_ = new QTextEdit(this);
-    input_->setPlaceholderText(QStringLiteral("给 AriaAgent 发送消息…  Enter 发送 · Shift+Enter 换行"));
+    input_->setPlaceholderText(QString::fromStdString(agent::i18n::str("input_placeholder")));
     input_->setFixedHeight(80);
     input_->setAcceptRichText(false);
 
     plus_btn_ = new QPushButton(QStringLiteral("+"), this);
     plus_btn_->setObjectName(QStringLiteral("primary"));
     plus_btn_->setFixedSize(30, 30);
-    plus_btn_->setToolTip(QStringLiteral("附件 / 工具"));
+    plus_btn_->setToolTip(QString::fromStdString(agent::i18n::str("attach_tooltip")));
     plus_btn_->setCursor(Qt::PointingHandCursor);
 
     tool_btn_ = new QPushButton(QStringLiteral("🛠 Workspace Write"), this);
     tool_btn_->setCursor(Qt::PointingHandCursor);
-    tool_btn_->setToolTip(QStringLiteral("工作区权限 (Read Only / Workspace Write / Full Access)"));
+    tool_btn_->setToolTip(QString::fromStdString(agent::i18n::str("ws_tooltip")));
 
     model_pick_ = new QPushButton(QStringLiteral("DeepSeek-V4-Flash ▾"), this);
     model_pick_->setCursor(Qt::PointingHandCursor);
-    model_pick_->setToolTip(QStringLiteral("点击切换模型 / 配置"));
+    model_pick_->setToolTip(QString::fromStdString(agent::i18n::str("attach_tooltip")));
 
     send_btn_ = new QPushButton(QStringLiteral("↑"), this);
     send_btn_->setObjectName(QStringLiteral("sendCircle"));
@@ -432,13 +435,14 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     rv->setSpacing(0);
     auto* rbar = new QHBoxLayout;
     rbar->setContentsMargins(14, 8, 8, 4);
-    auto* rtitle = new QLabel(QStringLiteral("工具面板"), right_wrap_);
+    auto* rtitle = new QLabel(QString::fromStdString(agent::i18n::str("panel_title")), right_wrap_);
+    rtitle->setObjectName(QStringLiteral("panelTitle"));
     rtitle->setStyleSheet(QStringLiteral("font-weight:600; color:%1;")
                           .arg(QString::fromUtf8(g_theme.text)));
     close_panel_btn_ = new QPushButton(QStringLiteral("✕"), right_wrap_);
     close_panel_btn_->setCursor(Qt::PointingHandCursor);
     close_panel_btn_->setFixedSize(28, 28);
-    close_panel_btn_->setToolTip(QStringLiteral("收起面板"));
+    close_panel_btn_->setToolTip(QString::fromStdString(agent::i18n::str("collapse_panel")));
     rbar->addWidget(rtitle);
     rbar->addStretch();
     rbar->addWidget(close_panel_btn_);
@@ -493,7 +497,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         auto* it = session_list_->itemAt(pos);
         if (!it) return;
         QMenu menu(this);
-        auto* del = menu.addAction(QStringLiteral("删除会话"));
+        auto* del = menu.addAction(QString::fromStdString(agent::i18n::str("delete_session")));
         if (menu.exec(session_list_->mapToGlobal(pos)) == del) {
             vm_->delete_session(it->data(Qt::UserRole).toString().toStdString());
         }
@@ -519,7 +523,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     // the phase label so failures are visible even when scrolled away.
     error_sub_ = vm_->error_occurred.connect([this](const std::string&) {
         QMetaObject::invokeMethod(this, [this] {
-            phase_label_->setText(QStringLiteral("⚠ 出错"));
+            phase_label_->setText(QString::fromStdString(agent::i18n::str("phase_error")));
         });
     });
 
@@ -528,7 +532,8 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
             send_btn_->setEnabled(!b);
             input_->setEnabled(!b);
             send_btn_->setText(b ? QStringLiteral("⏹") : QStringLiteral("↑"));
-            send_btn_->setToolTip(b ? QStringLiteral("停止") : QStringLiteral("发送"));
+            send_btn_->setToolTip(b ? QString::fromStdString(agent::i18n::str("stop"))
+                                 : QString::fromStdString(agent::i18n::str("send")));
         });
     });
     auto phase_sub = vm_->phase_text.observe([this](const std::string& p, const std::string&) {
@@ -552,6 +557,13 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
 
     // Sync initial workspace level (0/1/2) → env + label.
     set_workspace_level(ws_level_);
+
+    // Refresh labels from the i18n table, and keep them fresh on switch.
+    apply_language();
+    lang_sub_ = agent::i18n::on_language_changed([this](const std::string&) {
+        QMetaObject::invokeMethod(this, &MainWindow::apply_language,
+                                  Qt::QueuedConnection);
+    });
 }
 
 void MainWindow::on_send() {
@@ -575,7 +587,8 @@ void MainWindow::on_attach_file() {
     // Pick a single file and reference it as an inline @mention so the
     // agent (and tools that accept paths) can act on it.
     const QString path = QFileDialog::getOpenFileName(
-        this, QStringLiteral("选择附件"), QString(), QStringLiteral("所有文件 (*.*)"));
+        this, QString::fromStdString(agent::i18n::str("attach_dialog_title")), QString(),
+        QString::fromStdString(agent::i18n::str("attach_all_files")));
     if (path.isEmpty()) return;
     QString cur = input_->toPlainText();
     if (!cur.isEmpty() && !cur.endsWith('\n')) cur += '\n';
@@ -589,9 +602,9 @@ void MainWindow::on_workspace_mode_select() {
     // level is written to ARIA_WORKSPACE_WRITE (0/1/2) — tool
     // implementations and the approval gate both read it.
     QMenu menu(this);
-    auto* ro  = menu.addAction(QStringLiteral("🔒 Read Only"));
-    auto* wr  = menu.addAction(QStringLiteral("🛠 Workspace Write"));
-    auto* all = menu.addAction(QStringLiteral("🔓 Full Access"));
+    auto* ro  = menu.addAction(QString::fromStdString(agent::i18n::str("ws_read_only")));
+    auto* wr  = menu.addAction(QString::fromStdString(agent::i18n::str("ws_workspace_write")));
+    auto* all = menu.addAction(QString::fromStdString(agent::i18n::str("ws_full_access")));
     ro ->setData(0);
     wr ->setData(1);
     all->setData(2);
@@ -609,12 +622,30 @@ void MainWindow::on_workspace_mode_select() {
 void MainWindow::set_workspace_level(int level) {
     ws_level_ = (level < 0 || level > 2) ? 1 : level;
     switch (ws_level_) {
-        case 0: tool_btn_->setText(QStringLiteral("🔒 Read Only"));         break;
-        case 1: tool_btn_->setText(QStringLiteral("🛠 Workspace Write"));    break;
-        case 2: tool_btn_->setText(QStringLiteral("🔓 Full Access"));       break;
+        case 0: tool_btn_->setText(QString::fromStdString(agent::i18n::str("ws_read_only")));         break;
+        case 1: tool_btn_->setText(QString::fromStdString(agent::i18n::str("ws_workspace_write")));   break;
+        case 2: tool_btn_->setText(QString::fromStdString(agent::i18n::str("ws_full_access")));       break;
     }
     char buf[2] = {char('0' + ws_level_), 0};
     qputenv("ARIA_WORKSPACE_WRITE", buf);
+}
+
+void MainWindow::apply_language() {
+    setWindowTitle(QString::fromStdString(agent::i18n::str("window_title")));
+    new_chat_btn_->setText(QString::fromStdString(agent::i18n::str("new_chat")));
+    settings_btn_->setText(QString::fromStdString(agent::i18n::str("settings")));
+    traj_btn_->setText(QString::fromStdString(agent::i18n::str("trajectory")));
+    todo_btn_->setText(QString::fromStdString(agent::i18n::str("todo")));
+    model_label_->setText(QString::fromStdString(agent::i18n::str("app_subtitle")));
+    input_->setPlaceholderText(QString::fromStdString(agent::i18n::str("input_placeholder")));
+    plus_btn_->setToolTip(QString::fromStdString(agent::i18n::str("attach_tooltip")));
+    tool_btn_->setToolTip(QString::fromStdString(agent::i18n::str("ws_tooltip")));
+    if (auto* t = findChild<QLabel*>(QStringLiteral("panelTitle"))) {
+        t->setText(QString::fromStdString(agent::i18n::str("panel_title")));
+    }
+    close_panel_btn_->setToolTip(QString::fromStdString(agent::i18n::str("collapse_panel")));
+    // Workspace level label uses i18n too.
+    set_workspace_level(ws_level_);
 }
 
 void MainWindow::on_open_settings() {
@@ -676,8 +707,8 @@ void MainWindow::show_message_menu(const QPoint& pos) {
 
     const QString text = idx.data(RoleText).toString();
     QMenu menu(this);
-    auto* good = menu.addAction(QStringLiteral("👍 有帮助"));
-    auto* bad  = menu.addAction(QStringLiteral("👎 没帮助"));
+    auto* good = menu.addAction(QString::fromStdString(agent::i18n::str("feedback_helpful")));
+    auto* bad  = menu.addAction(QString::fromStdString(agent::i18n::str("feedback_not_helpful")));
     QAction* chosen = menu.exec(chat_list_->mapToGlobal(pos));
     if (!chosen) return;
 
