@@ -261,7 +261,7 @@ void MainWindow::apply_theme() {
 
 MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     : QMainWindow(parent), vm_(vm) {
-    setWindowTitle(QStringLiteral("AriaAgent"));
+    setWindowTitle(QString::fromStdString(agent::i18n::str("window_title")));
     resize(1280, 820);
     setMinimumSize(960, 640);
 
