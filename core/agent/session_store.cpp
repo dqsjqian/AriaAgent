@@ -1,6 +1,8 @@
 // AriaAgent — session store implementation.
 #include "agent/session_store.hpp"
 
+#include "i18n/I18n.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cstdlib>
@@ -60,7 +62,7 @@ std::string SessionStore::create(const std::string& title) {
     const int64_t t = now_ms();
     json doc;
     doc["id"] = id;
-    doc["title"] = title.empty() ? "New chat" : title;
+    doc["title"] = title.empty() ? agent::i18n::str("new_chat_default") : title;
     doc["created_at"] = t;
     doc["updated_at"] = t;
     doc["messages"] = json::array();
@@ -82,7 +84,7 @@ std::vector<SessionMeta> SessionStore::list() const {
             json doc = json::parse(ss.str());
             SessionMeta m;
             m.id = doc.value("id", entry.path().stem().string());
-            m.title = doc.value("title", "New chat");
+            m.title = doc.value("title", agent::i18n::str("new_chat_default"));
             m.created_at = doc.value("created_at", static_cast<int64_t>(0));
             m.updated_at = doc.value("updated_at", static_cast<int64_t>(0));
             out.push_back(std::move(m));
@@ -119,7 +121,7 @@ void SessionStore::save(const std::string& id, const MessageList& messages,
     const int64_t t = now_ms();
     json doc;
     doc["id"] = id;
-    doc["title"] = title_hint.empty() ? "New chat" : title_hint;
+    doc["title"] = title_hint.empty() ? agent::i18n::str("new_chat_default") : title_hint;
     // Preserve the original creation time — the sidebar sorts by it.
     // Overwriting it here made the previously-active session jump to the
     // top of the list whenever the user switched (persist_current runs

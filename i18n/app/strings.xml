@@ -9,8 +9,13 @@
 
     <!-- sidebar -->
     <string name="new_chat">＋ 新对话</string>
+    <string name="new_chat_default">新对话</string>
     <string name="settings">⚙ 设置</string>
     <string name="delete_session">删除会话</string>
+
+    <!-- default system prompt (shown in Settings -> General and used
+         when ARIA_LLM_SYSTEM_PROMPT is unset) -->
+    <string name="default_system_prompt">你是一个乐于助人的助手。你可以调用工具来回答问题,请一步步推理,并始终告诉用户你的发现。</string>
 
     <!-- top bar -->
     <string name="workspace">工作区</string>
