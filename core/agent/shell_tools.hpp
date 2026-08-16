@@ -6,8 +6,9 @@
 //     polled for incremental output (output spilled to a temp file)
 //   * list_directory   — convenience for the agent to inspect the workspace
 //
-// Uses QProcess (cross-platform); the agent layer stays Qt-free but these
-// tools live in a Qt-enabled translation unit.
+// Pure C++ (no Qt): process spawning goes through subprocess.hpp, directory
+// listing through std::filesystem. The whole agent layer stays Qt-free so
+// mobile shells (iOS/Android) can link it verbatim.
 #pragma once
 
 #include "agent/tool_registry.hpp"

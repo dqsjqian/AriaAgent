@@ -1,6 +1,6 @@
 // AriaAgent — Markdown renderer implementation.
-#include "ui/markdown_render.hpp"
-#include "ui/theme.hpp"
+#include "markdown_render.hpp"
+#include "theme.hpp"
 
 #include <QRegularExpression>
 #include <QStringList>

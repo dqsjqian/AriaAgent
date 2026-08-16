@@ -1,8 +1,8 @@
 // AriaAgent — settings dialog implementation.
-#include "ui/settings_dialog.hpp"
+#include "settings_dialog.hpp"
 
-#include "ui/main_window.hpp"
-#include "ui/theme.hpp"
+#include "main_window.hpp"
+#include "theme.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>

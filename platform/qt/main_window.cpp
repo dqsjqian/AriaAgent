@@ -1,11 +1,11 @@
 // AriaAgent — main window.
 // UI design follows DeepSeek's official harness web UI (deep dark theme,
 // linear icons, large rounded input bar, model picker, bubble chat).
-#include "ui/main_window.hpp"
-#include "ui/chat_view_model.hpp"
-#include "ui/markdown_render.hpp"
-#include "ui/settings_dialog.hpp"
-#include "ui/theme.hpp"
+#include "main_window.hpp"
+#include "viewmodel/chat_view_model.hpp"
+#include "markdown_render.hpp"
+#include "settings_dialog.hpp"
+#include "theme.hpp"
 
 #include "agent/todo_store.hpp"
 
@@ -36,7 +36,7 @@
 namespace {
 
 // ── Theme (shared with settings dialog + markdown renderer) ────────────────
-// Palette is defined in ui/theme.hpp; g_theme holds the active one and is
+// Palette is defined in qt/theme.hpp; g_theme holds the active one and is
 // reloaded by MainWindow::apply_theme().
 using agent_ui::Theme;
 using agent_ui::g_theme;
@@ -486,7 +486,7 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
     // Session list: click to switch, context menu to delete.
     connect(session_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
         if (!it) return;
-        vm_->switch_session(it->data(Qt::UserRole).toString());
+        vm_->switch_session(it->data(Qt::UserRole).toString().toStdString());
     });
     connect(session_list_, &QListWidget::customContextMenuRequested, this,
             [this](const QPoint& pos) {
@@ -495,11 +495,11 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         QMenu menu(this);
         auto* del = menu.addAction(QStringLiteral("删除会话"));
         if (menu.exec(session_list_->mapToGlobal(pos)) == del) {
-            vm_->delete_session(it->data(Qt::UserRole).toString());
+            vm_->delete_session(it->data(Qt::UserRole).toString().toStdString());
         }
     });
     // Refresh the sidebar whenever the session set changes.
-    connect(vm_, &ChatViewModel::sessionChanged, this, [this] {
+    session_sub_ = vm_->session_changed.connect([this] {
         session_list_->clear();
         const auto sessions_now = vm_->sessions();
         QListWidgetItem* current = nullptr;
@@ -514,6 +514,13 @@ MainWindow::MainWindow(ChatViewModel* vm, QWidget* parent)
         if (current) {
             session_list_->scrollToItem(current, QAbstractItemView::EnsureVisible);
         }
+    });
+    // VM errors surface as a chat bubble (VM handles rendering); also flash
+    // the phase label so failures are visible even when scrolled away.
+    error_sub_ = vm_->error_occurred.connect([this](const std::string&) {
+        QMetaObject::invokeMethod(this, [this] {
+            phase_label_->setText(QStringLiteral("⚠ 出错"));
+        });
     });
 
     auto busy_sub = vm_->busy.observe([this](bool b, bool) {
@@ -552,7 +559,7 @@ void MainWindow::on_send() {
     const QString text = input_->toPlainText().trimmed();
     if (text.isEmpty()) return;
     input_->clear();
-    vm_->send(text);
+    vm_->send(text.toStdString());
 }
 
 void MainWindow::on_stop() {

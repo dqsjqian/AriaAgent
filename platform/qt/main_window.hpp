@@ -5,6 +5,8 @@
 
 #include <QMainWindow>
 
+#include <aria/subscription.hpp>
+
 class QListView;
 class QTextEdit;
 class QPushButton;
@@ -64,4 +66,8 @@ private:
     QPushButton* close_panel_btn_; // ✕ collapse button on the panel title bar
     bool        trajectory_visible_{false};
     int         todo_sub_id_{0};
+
+    // aria subscriptions into the VM (kept alive for the window's lifetime)
+    aria::Subscription session_sub_;
+    aria::Subscription error_sub_;
 };

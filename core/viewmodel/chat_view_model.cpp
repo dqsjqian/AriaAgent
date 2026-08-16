@@ -1,39 +1,38 @@
-// AriaAgent — ChatViewModel implementation.
-#include "ui/chat_view_model.hpp"
+// AriaAgent — ChatViewModel implementation (framework-agnostic core).
+#include "viewmodel/chat_view_model.hpp"
 
-#include <QMessageBox>
-#include <QMetaObject>
-#include <QThread>
+#include <aria/runtime/dispatcher.hpp>
+
+#include <cstdlib>
 
 namespace {
 
-// Marshal a std::function to the UI thread; if already there, run inline.
+// Marshal a closure to the main (UI) thread via aria's dispatcher; the
+// Qt shell installs a QtDispatcher at startup, iOS/Android install their
+// own — the VM stays platform-agnostic.
 template <typename F>
-void post_to_ui(QObject* ctx, F&& f) {
-    if (QThread::currentThread() == ctx->thread()) {
+void post_to_ui(F&& f) {
+    auto& d = aria::runtime::main_dispatcher();
+    if (d.is_main_thread()) {
         f();
     } else {
-        QMetaObject::invokeMethod(ctx, [f = std::forward<F>(f)]() mutable { f(); },
-                                  Qt::QueuedConnection);
+        d.post(std::forward<F>(f));
     }
 }
 
 } // namespace
 
-ChatViewModel::ChatViewModel(agent::ToolRegistry tools, QObject* parent)
-    : QObject(parent),
-      registry_(std::move(tools)),
+ChatViewModel::ChatViewModel(agent::ToolRegistry tools)
+    : registry_(std::move(tools)),
       engine_(registry_, agent::AgentEngine::Config{}) {
     streaming_text = "";
     phase_text = "";
     busy = false;
-    connect(this, &ChatViewModel::finished, this, &ChatViewModel::finalize_success);
-    connect(this, &ChatViewModel::errorOccurred, this, &ChatViewModel::finalize_error);
 
     // Start with the most recent session, or create a fresh one.
     auto existing = store_.list();
     if (!existing.empty()) {
-        switch_session(QString::fromStdString(existing.front().id));
+        switch_session(existing.front().id);
     } else {
         new_session();
     }
@@ -45,9 +44,9 @@ ChatViewModel::~ChatViewModel() {
 }
 
 // ── Session management ──────────────────────────────────────────────────────
-QString ChatViewModel::current_title() const {
+std::string ChatViewModel::current_title() const {
     for (const auto& m : store_.list())
-        if (m.id == current_id_) return QString::fromStdString(m.title);
+        if (m.id == current_id_) return m.title;
     return {};
 }
 
@@ -60,15 +59,15 @@ void ChatViewModel::new_session() {
     current_id_ = store_.create();
     phase_text = "";
     streaming_text = "";
-    Q_EMIT sessionChanged();
+    session_changed.emit();
 }
 
-void ChatViewModel::switch_session(const QString& id) {
-    if (id.toStdString() == current_id_) return;
+void ChatViewModel::switch_session(const std::string& id) {
+    if (id == current_id_) return;
     stop();
     persist_current();
 
-    current_id_ = id.toStdString();
+    current_id_ = id;
     messages.clear();
     tool_trace.clear();
     history_ = store_.load(current_id_);
@@ -102,28 +101,26 @@ void ChatViewModel::switch_session(const QString& id) {
     }
     phase_text = "";
     streaming_text = "";
-    Q_EMIT sessionChanged();
+    session_changed.emit();
 }
 
-void ChatViewModel::delete_session(const QString& id) {
-    const std::string sid = id.toStdString();
-    if (sid == current_id_) {
+void ChatViewModel::delete_session(const std::string& id) {
+    if (id == current_id_) {
         // Can't delete the active session while it's running.
         if (running_) return;
     }
-    store_.remove(sid);
-    if (sid == current_id_) {
+    store_.remove(id);
+    if (id == current_id_) {
         auto remaining = store_.list();
-        if (!remaining.empty()) switch_session(QString::fromStdString(remaining.front().id));
+        if (!remaining.empty()) switch_session(remaining.front().id);
         else new_session();
     } else {
-        Q_EMIT sessionChanged();
+        session_changed.emit();
     }
 }
 
 // ── Send / stop ─────────────────────────────────────────────────────────────
-void ChatViewModel::send(const QString& text) {
-    const std::string input = text.toStdString();
+void ChatViewModel::send(const std::string& input) {
     if (input.empty() || running_) return;
 
     // Settings dialog writes these env vars on save; pick up any updates.
@@ -145,11 +142,11 @@ void ChatViewModel::send(const QString& text) {
     messages.push_back(streaming_row_);
     streaming_text = "";
 
-    // Engine runs off the UI thread; callbacks hop back to UI.
+    // Engine runs off the UI thread; callbacks hop back to UI via dispatcher.
     worker_ = std::make_unique<std::thread>([this] {
         agent::AgentCallbacks cb;
         cb.on_text_delta = [this](const std::string& d) {
-            post_to_ui(this, [this, d] {
+            post_to_ui([this, d] {
                 if (stop_) return;
                 streaming_text = streaming_text.get() + d;
                 if (streaming_row_) {
@@ -159,7 +156,7 @@ void ChatViewModel::send(const QString& text) {
             });
         };
         cb.on_tool_call = [this](const agent::ToolCallRecord& rec) {
-            post_to_ui(this, [this, rec] {
+            post_to_ui([this, rec] {
                 if (stop_) return;
                 phase_text = "tooling… (" + rec.name + ")";
                 UiToolCall tc{rec.name, rec.args, rec.result, rec.succeeded};
@@ -167,7 +164,7 @@ void ChatViewModel::send(const QString& text) {
             });
         };
         cb.on_phase = [this](agent::AgentPhase p) {
-            post_to_ui(this, [this, p] {
+            post_to_ui([this, p] {
                 if (stop_) return;
                 switch (p) {
                     case agent::AgentPhase::Thinking:  phase_text = "thinking…"; break;
@@ -178,42 +175,38 @@ void ChatViewModel::send(const QString& text) {
         };
         cb.on_approval = [this](const std::string& tool,
                                 const std::string& args) {
-            // Full Access (level 2) skips the prompt entirely — the user has
-            // already committed to letting the agent run unrestricted. Other
-            // levels go through the modal approval.
+            // Full Access (level 2) skips the prompt entirely.
             if (const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
                 mode && *mode == '2') {
                 return true;
             }
-
-            // Runs on the engine worker thread. Marshal to the UI thread and
-            // block until the user decides (fail-closed on any error).
-            std::atomic<bool> approved{false};
-            QMetaObject::invokeMethod(this, [this, tool, args, &approved] {
-                QMessageBox box(QMessageBox::Question,
-                    QStringLiteral("确认执行工具"),
-                    QStringLiteral("Agent 请求执行需要授权的工具:\n\n"
-                                   "<b>%1</b>\n<pre>%2</pre>\n\n是否允许?")
-                        .arg(QString::fromStdString(tool),
-                             QString::fromStdString(args)),
-                    QMessageBox::Yes | QMessageBox::No);
-                box.setDefaultButton(QMessageBox::No);   // fail-closed default
-                approved = box.exec() == QMessageBox::Yes;
-            }, Qt::BlockingQueuedConnection);
-            // BlockingQueuedConnection already waits for the lambda.
-            return approved.load();
+            // The VIEW owns the approval prompt; VM just asks. If no UI is
+            // injected (headless/mobile shell w/o prompt yet) → fail closed.
+            if (!approval_ui) return false;
+            bool approved = false;
+            post_to_ui([&] { approved = approval_ui(tool, args); });
+            return approved;
         };
         cb.on_error = [this](const std::string& e) {
-            post_to_ui(this, [this, e] { Q_EMIT errorOccurred(QString::fromStdString(e)); });
+            post_to_ui([this, e] {
+                finalize_error(e);
+                error_occurred.emit(e);
+            });
         };
 
         try {
             engine_.run(history_, cb);   // appends assistant reply to history_
         } catch (const std::exception& ex) {
-            Q_EMIT errorOccurred(QString::fromStdString(ex.what()));
+            post_to_ui([this, msg = std::string(ex.what())] {
+                finalize_error(msg);
+                error_occurred.emit(msg);
+            });
             return;
         }
-        post_to_ui(this, [this] { Q_EMIT finished(); });
+        post_to_ui([this] {
+            finalize_success();
+            finished.emit();
+        });
     });
 }
 
@@ -243,13 +236,13 @@ void ChatViewModel::finalize_success() {
     maybe_compact();
 }
 
-void ChatViewModel::finalize_error(const QString& err) {
+void ChatViewModel::finalize_error(const std::string& err) {
     if (streaming_row_) {
-        streaming_row_->text = "⚠ Error: " + err.toStdString();
+        streaming_row_->text = "⚠ Error: " + err;
         messages.replace_at(messages.size() - 1, streaming_row_);
         streaming_row_.reset();
     } else {
-        push_assistant("⚠ Error: " + err.toStdString());
+        push_assistant("⚠ Error: " + err);
     }
     running_ = false;
     busy = false;
@@ -297,7 +290,7 @@ void ChatViewModel::maybe_compact() {
     prefix.push_back(history_.front());                    // system prompt
     for (size_t i = 1; i < cut; ++i) prefix.push_back(history_[i]);
 
-    QString old_phase = phase_text.get().c_str();
+    const std::string old_phase = phase_text.get();
     phase_text = "compacting…";
 
     worker_ = std::make_unique<std::thread>([this, prefix, cut, old_phase] {
@@ -307,8 +300,8 @@ void ChatViewModel::maybe_compact() {
             summary = engine_.summarize(prefix);
             ok = true;
         } catch (const std::exception&) { /* keep history as-is on failure */ }
-        post_to_ui(this, [this, prefix, cut, summary, ok, old_phase] {
-            phase_text = old_phase.toStdString();
+        post_to_ui([this, prefix, cut, summary, ok, old_phase] {
+            phase_text = old_phase;
             if (!ok || summary.empty()) return;
 
             // Replace history_[1..cut) with a single system-compaction note.
