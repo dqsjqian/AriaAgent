@@ -52,23 +52,31 @@ Agent 循环(思考 → 调工具 → 观察 → 再思考)用 C++20 协程实�
 - **消息反馈** —— 右键 👍/👎,持久化
 - **权限审批** —— 危险工具执行前模态确认,默认拒绝(fail-closed)
 
-### 🏗 架构分层
+### 🏗 架构分层(core 纯 C++ + 多平台壳)
+
 ```
-src/
-├── agent/            # 引擎层(零 UI 依赖、零 provider 依赖)
-│   ├── agent.cpp     #   协程 Agent 循环
-│   ├── llm_client.*  #   LlmClient 接口 + OpenAI 兼容实现
-│   ├── tool_registry.*  #   工具注册 + JSON-Schema 校验
-│   ├── shell_tools.* / fs_tools.* / todo_tools.*
-│   ├── session_store.*  #   会话持久化
-│   └── model.hpp / json_schema.*
-├── ui/               # Qt6 界面层(DeepSeek harness 设计语言)
-│   ├── chat_view_model.*  #   响应式 ViewModel
-│   ├── main_window.*      #   主窗口 + 气泡 delegate
-│   ├── settings_dialog.*  #   设置(通用/模型/插件/预设)
-│   └── markdown_render.*  #   Markdown → HTML 渲染器
-└── main.cpp
+AriaAgent/
+├── core/                    # ★ 纯 C++,零 Qt 依赖(移动端直接复用)
+│   ├── agent/               #   引擎层:agent 循环 / llm_client / 工具 /
+│   │                        #   session_store / json_schema / subprocess
+│   └── viewmodel/           #   ChatViewModel:aria::binding::ViewModel +
+│                            #   Property/ObservableList/TypedSignal
+│                            #   (无 QObject、无 QString、无 UI 弹窗)
+├── platform/                # ★ 平台壳(唯一允许碰 UI 框架的地方)
+│   ├── qt/                  #   Qt6 桌面:main.cpp(QtDispatcher)/
+│   │                        #   main_window / settings_dialog / markdown_render
+│   └── (未来) ios/ android/ #   同一套 core 直接链接,只需新写视图壳
+├── third_party/aria         # vendored 框架(submodule)
+├── core/CMakeLists.txt      # ariaagent_core + ariaagent_viewmodel
+└── platform/qt/CMakeLists.txt  # aria_agent 可执行
 ```
+
+**跨线程**:VM 通过 `aria::runtime::main_dispatcher()` 回到 UI 线程 —— Qt 壳在
+`main.cpp` 里安装 `QtDispatcher`,iOS/Android 壳装各自的 dispatcher,VM 本身
+完全不知道平台是谁。
+
+**权限弹窗**:VM 只暴露 `approval_ui` 回调接口,由平台壳注入原生对话框
+(QMessageBox / UIAlertController / Android Dialog),VM 永远不弹窗。
 
 ## 🚀 快速开始
 
