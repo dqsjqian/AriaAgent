@@ -142,6 +142,7 @@ void register_shell_tools(ToolRegistry& reg) {
             {"required", json::array({"command"})}
         },
         false,               // exclusive: shell runs serialize
+        true,                // requires approval (executes commands)
         run_command_impl
     });
     reg.register_tool({
@@ -156,6 +157,7 @@ void register_shell_tools(ToolRegistry& reg) {
             {"required", json::array({"command"})}
         },
         false,
+        true,                // requires approval (spawns processes)
         run_background_impl
     });
     reg.register_tool({
@@ -169,6 +171,7 @@ void register_shell_tools(ToolRegistry& reg) {
             {"required", json::array({"handle"})}
         },
         true,                // concurrent reads are fine
+        false,
         read_output_impl
     });
     reg.register_tool({
@@ -182,6 +185,7 @@ void register_shell_tools(ToolRegistry& reg) {
             {"required", json::array({"handle"})}
         },
         false,
+        true,                // requires approval (kills processes)
         kill_process_impl
     });
     reg.register_tool({
@@ -195,6 +199,7 @@ void register_shell_tools(ToolRegistry& reg) {
             {"required", json::array()}
         },
         true,
+        false,
         list_directory_impl
     });
 }

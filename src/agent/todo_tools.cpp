@@ -62,6 +62,7 @@ void register_todo_tools(ToolRegistry& reg) {
             {"required", json::array({"items"})}
         },
         false,   // exclusive: snapshot mutations serialize
+        false,   // requires approval
         todo_set_impl
     });
     reg.register_tool({
@@ -75,6 +76,7 @@ void register_todo_tools(ToolRegistry& reg) {
             {"required", json::array({"content"})}
         },
         false,
+        false,
         todo_add_impl
     });
     reg.register_tool({
@@ -82,6 +84,7 @@ void register_todo_tools(ToolRegistry& reg) {
         "Return the current todo list.",
         {{"type", "object"}, {"properties", json::object()}},
         true,   // concurrent reads are fine
+        false,
         todo_list_impl
     });
 }

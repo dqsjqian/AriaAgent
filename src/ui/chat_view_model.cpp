@@ -1,6 +1,7 @@
 // AriaAgent — ChatViewModel implementation.
 #include "ui/chat_view_model.hpp"
 
+#include <QMessageBox>
 #include <QMetaObject>
 #include <QThread>
 
@@ -174,6 +175,25 @@ void ChatViewModel::send(const QString& text) {
                     default:                           phase_text = "";          break;
                 }
             });
+        };
+        cb.on_approval = [this](const std::string& tool,
+                                const std::string& args) {
+            // Runs on the engine worker thread. Marshal to the UI thread and
+            // block until the user decides (fail-closed on any error).
+            std::atomic<bool> approved{false};
+            QMetaObject::invokeMethod(this, [this, tool, args, &approved] {
+                QMessageBox box(QMessageBox::Question,
+                    QStringLiteral("确认执行工具"),
+                    QStringLiteral("Agent 请求执行需要授权的工具:\n\n"
+                                   "<b>%1</b>\n<pre>%2</pre>\n\n是否允许?")
+                        .arg(QString::fromStdString(tool),
+                             QString::fromStdString(args)),
+                    QMessageBox::Yes | QMessageBox::No);
+                box.setDefaultButton(QMessageBox::No);   // fail-closed default
+                approved = box.exec() == QMessageBox::Yes;
+            }, Qt::BlockingQueuedConnection);
+            // BlockingQueuedConnection already waits for the lambda.
+            return approved.load();
         };
         cb.on_error = [this](const std::string& e) {
             post_to_ui(this, [this, e] { Q_EMIT errorOccurred(QString::fromStdString(e)); });

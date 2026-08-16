@@ -98,6 +98,7 @@ void register_fs_tools(ToolRegistry& reg) {
             {"required", json::array({"path"})}
         },
         true,
+        false,
         read_file_impl
     });
     reg.register_tool({
@@ -112,6 +113,7 @@ void register_fs_tools(ToolRegistry& reg) {
             {"required", json::array({"path", "content"})}
         },
         false,               // exclusive: file writes serialize
+        true,                // requires approval (modifies files)
         write_file_impl
     });
     reg.register_tool({
@@ -127,6 +129,7 @@ void register_fs_tools(ToolRegistry& reg) {
             {"required", json::array({"path", "old", "new"})}
         },
         false,
+        true,                // requires approval (modifies files)
         edit_file_impl
     });
 }

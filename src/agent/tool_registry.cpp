@@ -38,6 +38,12 @@ bool ToolRegistry::is_concurrency_safe(const std::string& name) const {
     return tools_[it->second].concurrency_safe;
 }
 
+bool ToolRegistry::requires_approval(const std::string& name) const {
+    auto it = index_.find(name);
+    if (it == index_.end()) return false;
+    return tools_[it->second].requires_approval;
+}
+
 json ToolRegistry::schema() const {    json arr = json::array();
     for (const auto& t : tools_) {
         arr.push_back({
@@ -100,6 +106,7 @@ void register_builtin_tools(ToolRegistry& reg) {
             {"required", json::array({"a","b","op"})}
         },
         true,               // concurrency_safe
+        false,              // requires approval
         tool_calculator
     });
     reg.register_tool({
@@ -107,6 +114,7 @@ void register_builtin_tools(ToolRegistry& reg) {
         "Return the current local date and time.",
         {{"type", "object"}, {"properties", json::object()}},
         true,               // concurrency_safe
+        false,              // requires approval
         tool_now
     });
 }
