@@ -37,7 +37,7 @@ private:
     // model page
     QLineEdit*  base_url_edit_;
     QLineEdit*  api_key_edit_;
-    QLineEdit*  model_edit_;
+    QComboBox*  model_edit_;
 
     // general page
     QLineEdit*  prompt_edit_;

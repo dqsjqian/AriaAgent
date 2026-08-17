@@ -68,7 +68,7 @@
 
 - [ ] **P4-1 设置页补完**: 主题切换 (light/dark) + 插件启停 + 预设管理
 - [ ] **P4-2 图标 & 视觉打磨**: 线性图标集, 动画过渡
-- [x] **P4-3 打包发布**: scripts/build-release.ps1 (Release 构建 + DLL 部署一步到位)
+- [x] **P4-3 打包发布**: `scripts/build.ps1 release` (Release 构建 + DLL 部署一步到位)
 
 ---
 

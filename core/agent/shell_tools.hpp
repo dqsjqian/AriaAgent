@@ -19,4 +19,7 @@ namespace agent {
 // list_directory.
 void register_shell_tools(ToolRegistry& reg);
 
+// Stop all background commands, used when workspace trust is reduced or moved.
+void stop_all_background_processes();
+
 } // namespace agent

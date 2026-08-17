@@ -17,6 +17,10 @@
 
 #include <QApplication>
 #include <QAbstractTextDocumentLayout>
+#include <QClipboard>
+#include <QDesktopServices>
+#include <QDir>
+#include <QFileInfo>
 #include <QFrame>
 #include <QFileDialog>
 #include <QHBoxLayout>
@@ -26,14 +30,17 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QSettings>
 #include <QPainterPath>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
 #include <QTextEdit>
+#include <QUrl>
 #include <QVBoxLayout>
 #include <QAbstractItemView>
 #include <QFontMetrics>
@@ -56,7 +63,8 @@ enum : int {
 // ── Bubble delegate: rounded message bubble ─────────────────────────────────
 class BubbleDelegate : public QStyledItemDelegate {
 public:
-    using QStyledItemDelegate::QStyledItemDelegate;
+    BubbleDelegate(QObject* parent, std::function<void(const QString&)> open_link)
+        : QStyledItemDelegate(parent), open_link_(std::move(open_link)) {}
 
     static QTextDocument* make_doc(const QString& text, bool isUser,
                                    bool isTool, const QFont& font) {
@@ -131,6 +139,49 @@ public:
 
         p->restore();
     }
+
+    bool editorEvent(QEvent* event, QAbstractItemModel*,
+                     const QStyleOptionViewItem& opt,
+                     const QModelIndex& idx) override {
+        if (idx.data(RoleAuthor).toString() == "You" || idx.data(RoleIsTool).toBool()) {
+            return false;
+        }
+        if (event->type() != QEvent::MouseMove &&
+            event->type() != QEvent::MouseButtonRelease) {
+            return false;
+        }
+        auto* mouse = static_cast<QMouseEvent*>(event);
+        const QString href = anchor_at(opt, idx, mouse->position());
+        if (auto* view = qobject_cast<QAbstractItemView*>(parent())) {
+            view->viewport()->setCursor(href.isEmpty() ? Qt::ArrowCursor
+                                                       : Qt::PointingHandCursor);
+        }
+        if (event->type() == QEvent::MouseButtonRelease &&
+            mouse->button() == Qt::LeftButton && !href.isEmpty()) {
+            open_link_(href);
+            return true;
+        }
+        return false;
+    }
+
+private:
+    QString anchor_at(const QStyleOptionViewItem& opt, const QModelIndex& idx,
+                      const QPointF& point) const {
+        const QRect r = opt.rect.adjusted(8, 4, -8, -4);
+        const int bw = std::min(r.width() - 24, 640);
+        const int bx = r.left();
+        const int bubble_top = r.y() + 4 + 18;
+        const QPointF document_point = point - QPointF(bx + 10, bubble_top + 6);
+        if (document_point.x() < 0 || document_point.y() < 0) return {};
+        std::unique_ptr<QTextDocument> doc(
+            make_doc(idx.data(RoleText).toString(), false, false, opt.font));
+        doc->setTextWidth(bw - 20);
+        if (document_point.x() > doc->textWidth() ||
+            document_point.y() > doc->size().height()) return {};
+        return doc->documentLayout()->anchorAt(document_point);
+    }
+
+    std::function<void(const QString&)> open_link_;
 };
 
 // ── Bind aria list → Qt model ───────────────────────────────────────────────
@@ -312,8 +363,9 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     sidebar_w->setLayout(sidebar);
 
     // ── Chat area: top bar + bubble list + input ──────────────────────────
-    auto* tag_ws = new QLabel(QString::fromStdString(texts_->text("workspace")), this);
-    tag_ws->setObjectName(QStringLiteral("workspaceTag"));
+    workspace_label_ = new QPushButton(this);
+    workspace_label_->setObjectName(QStringLiteral("workspaceTag"));
+    workspace_label_->setCursor(Qt::PointingHandCursor);
 
     model_label_ = new QLabel(QString::fromStdString(texts_->text("app_subtitle")), this);
 
@@ -328,7 +380,7 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     auto* top_bar = new QHBoxLayout;
     top_bar->setContentsMargins(0, 0, 0, 0);
     top_bar->setSpacing(10);
-    top_bar->addWidget(tag_ws);
+    top_bar->addWidget(workspace_label_);
     top_bar->addSpacing(8);
     top_bar->addWidget(model_label_);
     top_bar->addStretch();
@@ -341,13 +393,25 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
         chat_vm_->messages,
         QHash<int,QByteArray>{{RoleAuthor,"author"},{RoleDisplay,"display"},{RoleText,"text"},{RoleIsTool,"tool"},{RoleToolName,"toolname"}},
         chat_data_fn, chat_list_));
-    chat_list_->setItemDelegate(new BubbleDelegate(chat_list_));
-    chat_list_->setSelectionMode(QAbstractItemView::NoSelection);
+    chat_list_->setItemDelegate(new BubbleDelegate(
+        chat_list_, [this](const QString& href) { open_message_link(href); }));
+    chat_list_->setMouseTracking(true);
+    chat_list_->viewport()->setMouseTracking(true);
+    chat_list_->setSelectionMode(QAbstractItemView::SingleSelection);
+    chat_list_->setSelectionBehavior(QAbstractItemView::SelectRows);
     chat_list_->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
     chat_list_->setWordWrap(true);
-    chat_list_->setFocusPolicy(Qt::NoFocus);
+    chat_list_->setFocusPolicy(Qt::StrongFocus);
     chat_list_->setStyleSheet(QStringLiteral(
         "QListView { background:transparent; border:none; padding:8px; }"));
+
+    auto* chat_model = chat_list_->model();
+    connect(chat_model, &QAbstractItemModel::rowsInserted, this,
+            [this] { scroll_bottom(); });
+    connect(chat_model, &QAbstractItemModel::dataChanged, this,
+            [this] { scroll_bottom(); });
+    connect(chat_model, &QAbstractItemModel::modelReset, this,
+            [this] { scroll_bottom(); });
 
     // ── Input bar ──────────────────────────────────────────────────────────
     input_ = new QTextEdit(this);
@@ -366,9 +430,9 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     tool_btn_->setCursor(Qt::PointingHandCursor);
     tool_btn_->setToolTip(QString::fromStdString(texts_->text("ws_tooltip")));
 
-    model_pick_ = new QPushButton(QStringLiteral("DeepSeek-V4-Flash ▾"), this);
+    model_pick_ = new QPushButton(this);
     model_pick_->setCursor(Qt::PointingHandCursor);
-    model_pick_->setToolTip(QString::fromStdString(texts_->text("attach_tooltip")));
+    refresh_model_selector();
 
     send_btn_ = new QPushButton(QStringLiteral("↑"), this);
     send_btn_->setObjectName(QStringLiteral("sendCircle"));
@@ -471,14 +535,21 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
         todo_btn_->setStyleSheet(QString());
     });
     connect(plus_btn_, &QPushButton::clicked, this, &MainWindow::on_attach_file);
+    connect(workspace_label_, &QPushButton::clicked, this, &MainWindow::on_choose_workspace);
     connect(tool_btn_, &QPushButton::clicked, this, &MainWindow::on_workspace_mode_select);
-    connect(model_pick_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
+    connect(model_pick_, &QPushButton::clicked, this, &MainWindow::on_model_select);
     connect(settings_btn_, &QPushButton::clicked, this, &MainWindow::on_open_settings);
 
     // Right-click a chat message → feedback menu (P2-4).
     chat_list_->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(chat_list_, &QListView::customContextMenuRequested,
             this, &MainWindow::show_message_menu);
+    auto* copy_shortcut = new QShortcut(QKeySequence::Copy, chat_list_);
+    connect(copy_shortcut, &QShortcut::activated, this, [this] {
+        const QModelIndex idx = chat_list_->currentIndex();
+        if (!idx.isValid()) return;
+        QApplication::clipboard()->setText(idx.data(RoleText).toString());
+    });
 
     // Session list: click to switch, context menu to delete.
     connect(session_list_, &QListWidget::itemClicked, this, [this](QListWidgetItem* it) {
@@ -515,6 +586,12 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
         QMetaObject::invokeMethod(this, [this, b] {
             send_btn_->setEnabled(!b);
             input_->setEnabled(!b);
+            new_chat_btn_->setEnabled(!b);
+            session_list_->setEnabled(!b);
+            model_pick_->setEnabled(!b);
+            settings_btn_->setEnabled(!b);
+            workspace_label_->setEnabled(!b);
+            tool_btn_->setEnabled(!b);
             send_btn_->setText(b ? QStringLiteral("⏹") : QStringLiteral("↑"));
             send_btn_->setToolTip(b ? QString::fromStdString(texts_->text("stop"))
                                     : QString::fromStdString(texts_->text("send")));
@@ -534,11 +611,13 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     });
     refresh_todo();
 
-    // Settings saved → restyle theme + language immediately.
+    // Settings saved → restyle and apply the selected model immediately.
     settings_sub_ = settings_vm_->settings_saved.connect([this] {
         QMetaObject::invokeMethod(this, [this] {
             apply_theme();
             apply_language();
+            refresh_model_selector();
+            chat_vm_->reload_model_settings();
         });
     });
 
@@ -547,13 +626,16 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
         if (chat_vm_->busy.get()) chat_vm_->stop();
     });
 
-    auto* chat_model = qobject_cast<QAbstractListModel*>(chat_list_->model());
-    connect(chat_model, &QAbstractListModel::rowsInserted,
-            this, &MainWindow::scroll_bottom);
-
-    // Everything is constructed — restyle now that all widgets exist.
+    // Everything is constructed — restore workspace state, then restyle.
+    QSettings app_settings("AriaAgent", "AriaAgent");
+    workspace_root_ = app_settings.value(
+        "workspace/root", qEnvironmentVariable("ARIA_WORKSPACE_ROOT")).toString();
+    ws_level_ = app_settings.value("workspace/access", 1).toInt();
+    if (!QFileInfo(workspace_root_).isDir()) {
+        workspace_root_ = QDir::currentPath();
+    }
+    update_workspace(workspace_root_, ws_level_);
     apply_theme();
-    set_workspace_level(ws_level_);
     apply_language();
     lang_sub_ = agent::i18n::on_language_changed([this](const std::string&) {
         QMetaObject::invokeMethod(this, &MainWindow::apply_language,
@@ -661,15 +743,66 @@ void MainWindow::on_workspace_mode_select() {
     set_workspace_level(picked->data().toInt());
 }
 
+void MainWindow::on_choose_workspace() {
+    const QString selected = QFileDialog::getExistingDirectory(
+        this, QString::fromStdString(texts_->text("workspace")), workspace_root_);
+    if (!selected.isEmpty()) update_workspace(selected, ws_level_);
+}
+
 void MainWindow::set_workspace_level(int level) {
-    ws_level_ = (level < 0 || level > 2) ? 1 : level;
+    update_workspace(workspace_root_, level);
+}
+
+void MainWindow::update_workspace(const QString& path, int level) {
+    const QString canonical = QFileInfo(path).canonicalFilePath();
+    if (canonical.isEmpty() || !QFileInfo(canonical).isDir()) return;
+    const int access = (level < 0 || level > 2) ? 1 : level;
+    if (!chat_vm_->set_workspace(canonical.toStdString(), access)) return;
+
+    workspace_root_ = canonical;
+    ws_level_ = access;
+    workspace_label_->setText(QFileInfo(canonical).fileName());
+    workspace_label_->setToolTip(canonical);
     switch (ws_level_) {
         case 0: tool_btn_->setText(QString::fromStdString(texts_->text("ws_read_only")));         break;
         case 1: tool_btn_->setText(QString::fromStdString(texts_->text("ws_workspace_write")));   break;
         case 2: tool_btn_->setText(QString::fromStdString(texts_->text("ws_full_access")));       break;
     }
     char buf[2] = {char('0' + ws_level_), 0};
+    qputenv("ARIA_WORKSPACE_ROOT", canonical.toUtf8());
     qputenv("ARIA_WORKSPACE_WRITE", buf);
+    QSettings app_settings("AriaAgent", "AriaAgent");
+    app_settings.setValue("workspace/root", canonical);
+    app_settings.setValue("workspace/access", ws_level_);
+}
+
+void MainWindow::refresh_model_selector() {
+    const QString model = QString::fromStdString(settings_vm_->model.get());
+    model_pick_->setText(model + QStringLiteral(" ▾"));
+    model_pick_->setToolTip(model);
+}
+
+void MainWindow::on_model_select() {
+    QMenu menu(this);
+    QAction* selected = nullptr;
+    const auto& models = settings_vm_->models.get();
+    for (const auto& value : models) {
+        auto* action = menu.addAction(QString::fromStdString(value));
+        action->setData(QString::fromStdString(value));
+        action->setCheckable(true);
+        action->setChecked(value == settings_vm_->model.get());
+    }
+    if (!models.empty()) menu.addSeparator();
+    auto* configure = menu.addAction(QString::fromStdString(settings_vm_->nav_model.get()));
+
+    selected = menu.exec(model_pick_->mapToGlobal(
+        QPoint(model_pick_->width() / 2, model_pick_->height())));
+    if (!selected) return;
+    if (selected == configure) {
+        on_open_settings();
+        return;
+    }
+    settings_vm_->select_model(selected->data().toString().toStdString());
 }
 
 void MainWindow::apply_language() {
@@ -738,19 +871,58 @@ void MainWindow::refresh_todo() {
     }
 }
 
+void MainWindow::open_message_link(const QString& href) {
+    QUrl url(href);
+    if (url.scheme().compare("http", Qt::CaseInsensitive) == 0 ||
+        url.scheme().compare("https", Qt::CaseInsensitive) == 0) {
+        QDesktopServices::openUrl(url);
+        return;
+    }
+
+    QString local_path;
+    if (url.isLocalFile()) {
+        local_path = url.toLocalFile();
+    } else if (url.scheme().isEmpty()) {
+        local_path = href;
+    } else {
+        return;
+    }
+    QFileInfo file(local_path);
+    if (file.isRelative()) file.setFile(QDir(workspace_root_).filePath(local_path));
+    const QString canonical = file.canonicalFilePath();
+    if (canonical.isEmpty()) return;
+    if (ws_level_ != 2) {
+        const QString relative = QDir(workspace_root_).relativeFilePath(canonical);
+        if (relative == ".." || relative.startsWith("../") || QDir::isAbsolutePath(relative)) {
+            return;
+        }
+    }
+    QDesktopServices::openUrl(QUrl::fromLocalFile(canonical));
+}
+
 void MainWindow::show_message_menu(const QPoint& pos) {
     const QModelIndex idx = chat_list_->indexAt(pos);
     if (!idx.isValid()) return;
+    chat_list_->setCurrentIndex(idx);
+
     const QString author = idx.data(RoleAuthor).toString();
     const bool isUser = author == "You";
-    if (isUser) return;   // feedback is for assistant/tool messages
-
     const QString text = idx.data(RoleText).toString();
     QMenu menu(this);
-    auto* good = menu.addAction(QString::fromStdString(texts_->text("feedback_helpful")));
-    auto* bad  = menu.addAction(QString::fromStdString(texts_->text("feedback_not_helpful")));
+    auto* copy = menu.addAction(QString::fromStdString(texts_->text("copy_message")));
+    QAction* good = nullptr;
+    QAction* bad = nullptr;
+    if (!isUser) {
+        menu.addSeparator();
+        good = menu.addAction(QString::fromStdString(texts_->text("feedback_helpful")));
+        bad = menu.addAction(QString::fromStdString(texts_->text("feedback_not_helpful")));
+    }
     QAction* chosen = menu.exec(chat_list_->mapToGlobal(pos));
     if (!chosen) return;
+    if (chosen == copy) {
+        QApplication::clipboard()->setText(text);
+        return;
+    }
 
     // Persist per-message feedback (keyed by a content hash) — P2-4.
     const QString key = QString::number(qHash(text), 16);

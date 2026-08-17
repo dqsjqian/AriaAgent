@@ -20,7 +20,8 @@ struct ProcResult {
 
 /// Run `command` via the platform shell, blocking up to `timeout_ms`
 /// (0 = no timeout). Kills the process tree on timeout.
-ProcResult run_sync(const std::string& command, int timeout_ms);
+ProcResult run_sync(const std::string& command, int timeout_ms,
+                    const std::string& working_directory = {});
 
 /// Opaque handle for a background process.
 struct BgProc;
@@ -28,7 +29,8 @@ struct BgProc;
 /// Start `command` detached. Returns a handle or nullptr on failure.
 /// The returned pointer must be released with bg_close() (or kept for the
 /// process lifetime and cleaned up at app exit).
-BgProc* bg_start(const std::string& command);
+BgProc* bg_start(const std::string& command,
+                 const std::string& working_directory = {});
 
 /// Consume output accumulated since the last call.
 std::string bg_read(BgProc* p);

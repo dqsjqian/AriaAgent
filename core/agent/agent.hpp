@@ -44,7 +44,8 @@ public:
     // lazily on first run() — so the UI can start without a valid API key
     // and only surface the config error when the user actually sends.
     explicit AgentEngine(ToolRegistry registry, Config cfg,
-                         std::unique_ptr<LlmClient> client = {});
+                         std::unique_ptr<LlmClient> client = {},
+                         std::string workspace_root = {});
     ~AgentEngine();
 
     // Run one turn against a shared, caller-owned conversation log.
@@ -70,8 +71,18 @@ public:
     // Returns the summary text; throws on API error.
     std::string summarize(const MessageList& prefix);
 
-    // Override the system prompt (e.g. from settings/env) for subsequent runs.
-    void set_system_prompt(std::string prompt) { cfg_.system_prompt = std::move(prompt); }
+    // Override the base system prompt while preserving tool-specific guidance.
+    void set_system_prompt(std::string prompt);
+    const std::string& system_prompt() const { return cfg_.system_prompt; }
+
+    // Update the tool execution boundary. Call only while no run is active.
+    void set_workspace(std::string root, int access);
+    const std::string& workspace_root() const { return workspace_root_; }
+    int workspace_access() const { return workspace_access_; }
+
+    // Drop the cached client so the next request re-reads runtime settings.
+    // Call only while no run/summarize operation is active.
+    void reload_client();
 
     const std::vector<ToolCallRecord>& tool_trace() const { return trace_; }
 
@@ -80,6 +91,9 @@ private:
 
     ToolRegistry          registry_;
     Config                cfg_;
+    std::string           tool_guidance_;
+    std::string           workspace_root_;
+    int                   workspace_access_{1};
     std::unique_ptr<LlmClient> client_;
     std::vector<ToolCallRecord> trace_;
 };

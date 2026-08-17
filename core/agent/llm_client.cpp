@@ -5,6 +5,8 @@
 // default base_url; everything else is the standard protocol.
 #include "agent/llm_client.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <map>
 #include <sstream>
@@ -45,40 +47,80 @@ OpenAiCompatClient::OpenAiCompatClient(Config cfg) : cfg_(std::move(cfg)) {
 // ── URL parsing (host:port/path from base_url) ──────────────────────────────
 namespace {
 struct Endpoint {
-    std::string host;
-    int         port;
+    std::string origin;
     std::string path;
 };
 
-Endpoint parse_base_url(const std::string& url, bool use_ssl) {
+Endpoint parse_endpoint(std::string url) {
+    while (!url.empty() && std::isspace(static_cast<unsigned char>(url.front()))) {
+        url.erase(url.begin());
+    }
+    while (!url.empty() && std::isspace(static_cast<unsigned char>(url.back()))) {
+        url.pop_back();
+    }
+    if (url.rfind("http://", 0) != 0 && url.rfind("https://", 0) != 0) {
+        throw std::invalid_argument("LLM URL must start with http:// or https://");
+    }
+
+    const auto authority_begin = url.find("://") + 3;
+    const auto path_begin = url.find('/', authority_begin);
     Endpoint ep;
-    std::string rest = url;
-    const std::string scheme = use_ssl ? "https://" : "http://";
-    if (rest.rfind(scheme, 0) == 0) {
-        rest = rest.substr(scheme.size());
+    ep.origin = path_begin == std::string::npos ? url : url.substr(0, path_begin);
+    ep.path = path_begin == std::string::npos ? "" : url.substr(path_begin);
+    while (ep.path.size() > 1 && ep.path.back() == '/') ep.path.pop_back();
+    if (ep.origin.size() == authority_begin) {
+        throw std::invalid_argument("LLM URL is missing a host");
     }
-    auto slash = rest.find('/');
-    std::string hostport = rest.substr(0, slash);
-    ep.path = slash == std::string::npos ? "/" : rest.substr(slash);
-    auto colon = hostport.rfind(':');
-    if (colon != std::string::npos) {
-        ep.host = hostport.substr(0, colon);
-        ep.port = std::atoi(hostport.substr(colon + 1).c_str());
-    } else {
-        ep.host = hostport;
-        ep.port = use_ssl ? 443 : 80;
+
+    constexpr const char* suffix = "/chat/completions";
+    if (ep.path.size() < std::char_traits<char>::length(suffix) ||
+        ep.path.compare(ep.path.size() - std::char_traits<char>::length(suffix),
+                        std::char_traits<char>::length(suffix), suffix) != 0) {
+        ep.path += suffix;
     }
-    if (ep.path.empty()) ep.path = "/";
     return ep;
+}
+
+std::string request_error(const char* operation, const Endpoint& ep,
+                          const httplib::Result& result) {
+    return std::string(operation) + " failed for " + ep.origin + ep.path + ": " +
+           httplib::to_string(result.error());
+}
+
+std::string http_error_detail(const std::string& body) {
+    if (body.empty()) return "server returned an empty error response";
+    try {
+        const auto parsed = json::parse(body);
+        if (parsed.contains("error")) {
+            const auto& error = parsed["error"];
+            if (error.is_string()) return error.get<std::string>().substr(0, 500);
+            if (error.is_object() && error.contains("message") &&
+                error["message"].is_string()) {
+                return error["message"].get<std::string>().substr(0, 500);
+            }
+        }
+        if (parsed.contains("message") && parsed["message"].is_string()) {
+            return parsed["message"].get<std::string>().substr(0, 500);
+        }
+        if (parsed.contains("detail") && parsed["detail"].is_string()) {
+            return parsed["detail"].get<std::string>().substr(0, 500);
+        }
+    } catch (const json::exception&) {
+        // Fall back to the bounded plain-text response below.
+    }
+    std::string detail = body.substr(0, 500);
+    std::replace(detail.begin(), detail.end(), '\n', ' ');
+    std::replace(detail.begin(), detail.end(), '\r', ' ');
+    return detail;
 }
 } // namespace
 
 // ── Non-streaming completion ────────────────────────────────────────────────
 std::string OpenAiCompatClient::complete(const MessageList& messages,
                                          const json& tools) {
-    Endpoint ep = parse_base_url(cfg_.base_url, true);
+    const Endpoint ep = parse_endpoint(cfg_.base_url);
 
-    httplib::Client cli(ep.host, ep.port);
+    httplib::Client cli(ep.origin);
     cli.enable_server_certificate_verification(cfg_.verify_ssl);
     cli.set_connection_timeout(cfg_.timeout_sec, 0);
     cli.set_read_timeout(cfg_.timeout_sec, 0);
@@ -91,17 +133,15 @@ std::string OpenAiCompatClient::complete(const MessageList& messages,
     body["messages"] = std::move(arr);
     if (!tools.is_null() && !tools.empty()) body["tools"] = tools;
 
-    auto res = cli.Post(ep.path + "/chat/completions",
-                        {{"Authorization", auth_header_},
-                         {"Content-Type", "application/json"}},
+    auto res = cli.Post(ep.path,
+                        {{"Authorization", auth_header_}},
                         body.dump(), "application/json");
     if (!res) {
-        throw std::runtime_error("LLM request failed: " +
-                                 httplib::to_string(res.error()));
+        throw std::runtime_error(request_error("LLM request", ep, res));
     }
     if (res->status != 200) {
         throw std::runtime_error("LLM HTTP " + std::to_string(res->status) +
-                                 ": " + res->body.substr(0, 500));
+                                 ": " + http_error_detail(res->body));
     }
     json parsed = json::parse(res->body);
     return parsed["choices"][0]["message"]["content"].get<std::string>();
@@ -112,9 +152,9 @@ void OpenAiCompatClient::complete_stream(
     const MessageList& messages,
     const json& tools,
     const std::function<void(const StreamEvent&)>& on_event) {
-    Endpoint ep = parse_base_url(cfg_.base_url, true);
+    const Endpoint ep = parse_endpoint(cfg_.base_url);
 
-    httplib::Client cli(ep.host, ep.port);
+    httplib::Client cli(ep.origin);
     cli.enable_server_certificate_verification(cfg_.verify_ssl);
     cli.set_connection_timeout(cfg_.timeout_sec, 0);
     cli.set_read_timeout(cfg_.timeout_sec, 0);
@@ -131,6 +171,7 @@ void OpenAiCompatClient::complete_stream(
     // Tool-call deltas: OpenAI streams each tool_call split across chunks,
     // identified by an integer index — merge fragments by that index.
     std::string sse_buffer;
+    std::string response_preview;
     std::map<int, ToolCallInfo> tool_acc;
     auto emit_line = [&](const std::string& line) {
         if (line.empty()) return;
@@ -140,6 +181,11 @@ void OpenAiCompatClient::complete_stream(
         if (!payload.empty() && payload[0] == ' ') payload.erase(0, 1);
         if (payload == "[DONE]") {
             StreamEvent e; e.finish = true; e.finish_reason = "stop";
+            for (const auto& [idx, tc] : tool_acc) {
+                (void)idx;
+                e.tool_calls.push_back(tc);
+            }
+            tool_acc.clear();
             on_event(e);
             return;
         }
@@ -159,12 +205,36 @@ void OpenAiCompatClient::complete_stream(
                 for (auto& tc : choice["delta"]["tool_calls"]) {
                     int idx = tc.value("index", 0);
                     auto& acc = tool_acc[idx];
-                    if (tc.contains("id")) acc.id = tc["id"].get<std::string>();
-                    auto& fn = tc["function"];
-                    if (fn.contains("name")) acc.name = fn["name"].get<std::string>();
-                    if (fn.contains("arguments")) acc.args += fn["arguments"].get<std::string>();
+                    if (tc.contains("id") && tc["id"].is_string()) {
+                        const auto id = tc["id"].get<std::string>();
+                        if (!id.empty()) acc.id = id;
+                    }
+                    if (tc.contains("function")) {
+                        auto& fn = tc["function"];
+                        if (fn.contains("name") && fn["name"].is_string()) {
+                            const auto name = fn["name"].get<std::string>();
+                            if (!name.empty()) acc.name = name;
+                        }
+                        if (fn.contains("arguments")) {
+                            const auto part = fn["arguments"].get<std::string>();
+                            // Most providers send argument deltas, while some
+                            // OpenAI-compatible gateways send the full argument
+                            // snapshot on every chunk. Support both forms.
+                            if (!acc.args.empty() && part.rfind(acc.args, 0) == 0) {
+                                acc.args = part;
+                            } else if (acc.args.rfind(part, 0) != 0) {
+                                acc.args += part;
+                            }
+                        }
+                    }
                 }
-                for (auto& [idx, tc] : tool_acc) e.tool_calls.push_back(tc);
+            }
+            if (e.finish && !tool_acc.empty()) {
+                for (const auto& [idx, tc] : tool_acc) {
+                    (void)idx;
+                    e.tool_calls.push_back(tc);
+                }
+                tool_acc.clear();
             }
             on_event(e);
         } catch (const std::exception& ex) {
@@ -174,6 +244,9 @@ void OpenAiCompatClient::complete_stream(
 
     // True streaming: httplib invokes this as chunks arrive from the socket.
     httplib::ContentReceiver receiver = [&](const char* data, size_t len) {
+        if (response_preview.size() < 4096) {
+            response_preview.append(data, std::min(len, 4096 - response_preview.size()));
+        }
         sse_buffer.append(data, len);
         size_t pos = 0;
         while (true) {
@@ -188,17 +261,16 @@ void OpenAiCompatClient::complete_stream(
         return true;
     };
 
-    auto res = cli.Post(ep.path + "/chat/completions",
+    auto res = cli.Post(ep.path,
                         {{"Authorization", auth_header_},
-                         {"Content-Type", "application/json"}},
+                         {"Accept", "text/event-stream"}},
                         body.dump(), "application/json", receiver);
     if (!res) {
-        throw std::runtime_error("LLM stream failed: " +
-                                 httplib::to_string(res.error()));
+        throw std::runtime_error(request_error("LLM stream", ep, res));
     }
     if (res->status != 200) {
         throw std::runtime_error("LLM HTTP " + std::to_string(res->status) +
-                                 ": " + res->body.substr(0, 500));
+                                 ": " + http_error_detail(response_preview));
     }
 }
 

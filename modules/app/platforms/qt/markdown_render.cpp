@@ -17,9 +17,7 @@ namespace agent_ui {
 namespace {
 
 QString escape_html(const QString& s) {
-    QString out = s;
-    out.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
-    return out;
+    return s.toHtmlEscaped();
 }
 
 // ── Minimal syntax highlighter (C++/JS/TS/py-ish) ──────────────────────────

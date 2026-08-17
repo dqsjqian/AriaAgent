@@ -26,15 +26,23 @@ public:
     // Schema array for the OpenAI "tools" request field.
     nlohmann::json schema() const;
 
+    // Whether a tool with this exact name is registered.
+    bool contains(const std::string& name) const;
+
     // Whether a tool may run concurrently with others (unknown → false).
     bool is_concurrency_safe(const std::string& name) const;
 
     // Whether a tool needs user approval before execution (unknown → false).
     bool requires_approval(const std::string& name) const;
 
+    // Add model-facing runtime guidance associated with registered tools.
+    void add_prompt_guidance(std::string guidance);
+    const std::vector<std::string>& prompt_guidance() const { return prompt_guidance_; }
+
 private:
     std::vector<Tool> tools_;
     std::map<std::string, size_t> index_;
+    std::vector<std::string> prompt_guidance_;
 };
 
 // Built-in tools.

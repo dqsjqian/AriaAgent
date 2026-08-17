@@ -53,7 +53,8 @@
     <string name="msg_error_prefix">⚠ Error: </string>
     <string name="msg_compacted">[Compacted conversation summary] </string>
 
-    <!-- feedback -->
+    <!-- message actions / feedback -->
+    <string name="copy_message">Copy message</string>
     <string name="feedback_helpful">👍 Helpful</string>
     <string name="feedback_not_helpful">👎 Not helpful</string>
 

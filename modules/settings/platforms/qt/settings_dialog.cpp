@@ -170,9 +170,15 @@ void SettingsDialog::build_model_page(QStackedWidget* stack) {
     api_key_edit_->setPlaceholderText(QStringLiteral("sk-…"));
     api_key_edit_->setText(QString::fromStdString(vm_->api_key.get()));
 
-    model_edit_ = new QLineEdit(card);
-    model_edit_->setPlaceholderText(QStringLiteral("deepseek-chat"));
-    model_edit_->setText(QString::fromStdString(vm_->model.get()));
+    model_edit_ = new QComboBox(card);
+    model_edit_->setEditable(true);
+    for (const auto& value : vm_->models.get()) {
+        model_edit_->addItem(QString::fromStdString(value));
+    }
+    model_edit_->setCurrentText(QString::fromStdString(vm_->model.get()));
+    if (model_edit_->lineEdit()) {
+        model_edit_->lineEdit()->setPlaceholderText(QStringLiteral("deepseek-chat"));
+    }
 
     form->addRow(QString::fromStdString(vm_->label_base_url.get()), base_url_edit_);
     form->addRow(QString::fromStdString(vm_->label_api_key.get()), api_key_edit_);
@@ -247,7 +253,7 @@ void SettingsDialog::build_presets_page(QStackedWidget* stack) {
 void SettingsDialog::save() {
     vm_->base_url       = base_url_edit_->text().trimmed().toStdString();
     vm_->api_key        = api_key_edit_->text().trimmed().toStdString();
-    vm_->model          = model_edit_->text().trimmed().toStdString();
+    vm_->model          = model_edit_->currentText().trimmed().toStdString();
     vm_->system_prompt  = prompt_edit_->text().toStdString();
     vm_->theme          = theme_combo_->currentIndex();
     vm_->language       = lang_combo_->currentData().toString().toStdString();

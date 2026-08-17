@@ -38,9 +38,13 @@ static int platform_kill(pid_t pid) {
 // Build a quoted command line: "cmd.exe /C <command>" for system shell.
 static std::wstring to_wide(const std::string& s) {
     if (s.empty()) return std::wstring();
-    int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, nullptr, 0);
-    std::wstring w(n ? n - 1 : 0, L'\0');
-    if (n) MultiByteToWideChar(CP_UTF8, 0, s.c_str(), -1, w.data(), n);
+    const int n = MultiByteToWideChar(CP_UTF8, 0, s.c_str(),
+                                      static_cast<int>(s.size()), nullptr, 0);
+    std::wstring w(n > 0 ? n : 0, L'\0');
+    if (n > 0) {
+        MultiByteToWideChar(CP_UTF8, 0, s.c_str(), static_cast<int>(s.size()),
+                            w.data(), n);
+    }
     return w;
 }
 
@@ -49,7 +53,8 @@ static std::wstring to_wide(const std::string& s) {
 // ═══════════════════════════════════════════════════════════════════════════
 //  Synchronous run (with timeout)
 // ═══════════════════════════════════════════════════════════════════════════
-ProcResult run_sync(const std::string& command, int timeout_ms) {
+ProcResult run_sync(const std::string& command, int timeout_ms,
+                    const std::string& working_directory) {
     ProcResult out;
 
 #ifdef _WIN32
@@ -71,8 +76,10 @@ ProcResult run_sync(const std::string& command, int timeout_ms) {
     PROCESS_INFORMATION pi{};
     std::wstring cmdline = L"cmd.exe /C " + to_wide(command);
     std::wstring mutable_cmd = cmdline;   // CreateProcessW may write to it
+    const std::wstring working_dir = to_wide(working_directory);
     if (!CreateProcessW(nullptr, mutable_cmd.data(), nullptr, nullptr, TRUE,
-                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+                        CREATE_NO_WINDOW, nullptr,
+                        working_dir.empty() ? nullptr : working_dir.c_str(), &si, &pi)) {
         CloseHandle(hRead);
         CloseHandle(hWrite);
         out.exit_code = -1;
@@ -142,6 +149,7 @@ ProcResult run_sync(const std::string& command, int timeout_ms) {
         dup2(pipefd[1], STDOUT_FILENO);
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
+        if (!working_directory.empty() && chdir(working_directory.c_str()) != 0) _exit(126);
         execl("/bin/sh", "sh", "-c", command.c_str(), (char*)nullptr);
         _exit(127);
     }
@@ -222,7 +230,8 @@ static void bg_reader(BgProc* p) {
     p->running = false;
 }
 
-BgProc* bg_start(const std::string& command) {
+BgProc* bg_start(const std::string& command,
+                 const std::string& working_directory) {
     auto* p = new BgProc;
 #ifdef _WIN32
     SECURITY_ATTRIBUTES sa{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
@@ -238,8 +247,10 @@ BgProc* bg_start(const std::string& command) {
     PROCESS_INFORMATION pi{};
     std::wstring cmdline = L"cmd.exe /C " + to_wide(command);
     std::wstring mutable_cmd = cmdline;
+    const std::wstring working_dir = to_wide(working_directory);
     if (!CreateProcessW(nullptr, mutable_cmd.data(), nullptr, nullptr, TRUE,
-                        CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) {
+                        CREATE_NO_WINDOW, nullptr,
+                        working_dir.empty() ? nullptr : working_dir.c_str(), &si, &pi)) {
         CloseHandle(p->read_pipe);
         CloseHandle(hWrite);
         delete p;
@@ -262,6 +273,7 @@ BgProc* bg_start(const std::string& command) {
         dup2(pipefd[1], STDOUT_FILENO);
         dup2(pipefd[1], STDERR_FILENO);
         close(pipefd[1]);
+        if (!working_directory.empty() && chdir(working_directory.c_str()) != 0) _exit(126);
         execl("/bin/sh", "sh", "-c", command.c_str(), (char*)nullptr);
         _exit(127);
     }

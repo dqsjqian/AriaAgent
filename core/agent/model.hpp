@@ -1,9 +1,12 @@
 // AriaAgent — core domain model shared by agent engine and UI layer.
 #pragma once
 
+#include <atomic>
+#include <functional>
+#include <optional>
 #include <string>
 #include <vector>
-#include <optional>
+
 #include <nlohmann/json.hpp>
 
 namespace agent {
@@ -138,7 +141,13 @@ struct AgentReply {
 
 // ── Tool interface ──────────────────────────────────────────────────────────
 struct ToolContext {
-    // Implementations may read system state / env here in the future.
+    std::string workspace_root;
+    int workspace_access{1}; // 0=read-only, 1=workspace write, 2=full access
+    std::atomic<bool>* cancelled{nullptr};
+
+    bool is_cancelled() const {
+        return cancelled && cancelled->load();
+    }
 };
 
 struct Tool {
@@ -152,7 +161,8 @@ struct Tool {
     // file writes, shell commands). Fail-closed when denied.
     bool                        requires_approval{false};
     // Executes with parsed JSON args; returns result JSON.
-    nlohmann::json              (*fn)(const nlohmann::json& args, ToolContext& ctx) = nullptr;
+    std::function<nlohmann::json(const nlohmann::json& args,
+                                 ToolContext& ctx)> fn;
 };
 
 } // namespace agent

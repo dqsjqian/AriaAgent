@@ -18,6 +18,7 @@
 #include "agent/llm_client.hpp"
 #include "agent/session_store.hpp"
 #include "agent/shell_tools.hpp"
+#include "agent/skill_tools.hpp"
 #include "agent/todo_store.hpp"
 #include "agent/todo_tools.hpp"
 #include "agent/tool_registry.hpp"
@@ -41,6 +42,17 @@ namespace {
 
 // Locate the runtime i18n/ directory: beside the exe, inside a macOS .app
 // bundle, or the source tree (development builds).
+std::string resolve_project_root() {
+    QDir current(QCoreApplication::applicationDirPath());
+    while (current.cdUp()) {
+        if (QFileInfo(current.filePath("CMakeLists.txt")).exists() &&
+            QFileInfo(current.filePath("core/agent")).isDir()) {
+            return current.absolutePath().toStdString();
+        }
+    }
+    return QDir::currentPath().toStdString();
+}
+
 std::string resolve_i18n_dir() {
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList candidates = {
@@ -68,6 +80,7 @@ int main(int argc, char* argv[]) {
 
     // ── ServiceHub: register the stable services ───────────────────────────
     ServiceHub hub;
+    qputenv("ARIA_WORKSPACE_ROOT", QByteArray::fromStdString(resolve_project_root()));
 
     // i18n backend (lives for the whole app; VMs read via i18n::str).
     static auto i18n_service = std::make_unique<agent::services::XmlI18nService>(
@@ -84,6 +97,7 @@ int main(int argc, char* argv[]) {
     agent::register_shell_tools(*tool_registry);
     agent::register_fs_tools(*tool_registry);
     agent::register_todo_tools(*tool_registry);
+    agent::register_skill_tools(*tool_registry, resolve_project_root());
     hub.register_instance(tool_registry);
 
     // Cross-module state services.

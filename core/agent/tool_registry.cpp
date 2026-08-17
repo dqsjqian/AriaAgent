@@ -5,6 +5,7 @@
 #include <cmath>
 #include <ctime>
 #include <stdexcept>
+#include <utility>
 
 namespace agent {
 
@@ -32,6 +33,10 @@ std::optional<json> ToolRegistry::run(const std::string& name,
     return t.fn(args, ctx);
 }
 
+bool ToolRegistry::contains(const std::string& name) const {
+    return index_.find(name) != index_.end();
+}
+
 bool ToolRegistry::is_concurrency_safe(const std::string& name) const {
     auto it = index_.find(name);
     if (it == index_.end()) return false;
@@ -42,6 +47,10 @@ bool ToolRegistry::requires_approval(const std::string& name) const {
     auto it = index_.find(name);
     if (it == index_.end()) return false;
     return tools_[it->second].requires_approval;
+}
+
+void ToolRegistry::add_prompt_guidance(std::string guidance) {
+    if (!guidance.empty()) prompt_guidance_.push_back(std::move(guidance));
 }
 
 json ToolRegistry::schema() const {    json arr = json::array();
