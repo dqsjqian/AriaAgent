@@ -3,7 +3,30 @@
 
 #include "i18n/I18n.h"
 
+#include <algorithm>
 #include <cstdlib>
+#include <utility>
+
+namespace {
+
+std::vector<std::string> normalize_models(std::vector<std::string> values,
+                                          const std::string& current) {
+    values.erase(std::remove_if(values.begin(), values.end(),
+                                [](const std::string& value) { return value.empty(); }),
+                 values.end());
+    if (!current.empty() && std::find(values.begin(), values.end(), current) == values.end()) {
+        values.push_back(current);
+    }
+    std::vector<std::string> unique;
+    for (const auto& value : values) {
+        if (std::find(unique.begin(), unique.end(), value) == unique.end()) {
+            unique.push_back(value);
+        }
+    }
+    return unique;
+}
+
+} // namespace
 
 SettingsVm::SettingsVm(agent::SettingsStore& store) : store_(store) {
     // Defaults (env overrides, then persisted JSON overrides in load()).
@@ -12,6 +35,7 @@ SettingsVm::SettingsVm(agent::SettingsStore& store) : store_(store) {
     if (const char* p = std::getenv("ARIA_LLM_API_KEY"); p && *p) api_key = p;
     if (const char* p = std::getenv("ARIA_LLM_MODEL"); p && *p) model = p;
     else model = "deepseek-chat";
+    models = std::vector<std::string>{model.get()};
     if (const char* p = std::getenv("ARIA_LLM_SYSTEM_PROMPT"); p && *p) {
         system_prompt = p;
     } else {
@@ -66,6 +90,7 @@ void SettingsVm::load() {
     v.base_url       = base_url.get();
     v.api_key        = api_key.get();
     v.model          = model.get();
+    v.models         = models.get();
     v.system_prompt  = system_prompt.get();
     v.theme          = theme.get();
     v.language       = language.get();
@@ -73,21 +98,30 @@ void SettingsVm::load() {
     v.enter_behavior = enter_behavior.get();
     v.preset         = preset.get();
     store_.load(v);
+    v.base_url = v.base_url.empty() ? "https://api.deepseek.com" : v.base_url;
+    v.model = v.model.empty() ? "deepseek-chat" : v.model;
     base_url       = v.base_url;
     api_key        = v.api_key;
     model          = v.model;
+    models         = normalize_models(std::move(v.models), v.model);
     system_prompt  = v.system_prompt;
     theme          = v.theme;
     language       = v.language;
     streaming      = v.streaming;
     enter_behavior = v.enter_behavior;
     preset         = v.preset;
-    // Apply the persisted language to the i18n service (so AppText and the
-    // VMs are in the right language at startup).
+    // Apply persisted runtime settings before the lazy client starts without
+    // rewriting the settings file during load or migration.
+    v.models = models.get();
+    store_.apply_runtime(v);
     agent::i18n::set_language(language.get());
 }
 
 void SettingsVm::save() {
+    if (base_url.get().empty()) base_url = "https://api.deepseek.com";
+    if (model.get().empty()) model = "deepseek-chat";
+    models = normalize_models(models.get(), model.get());
+
     // Preset → system prompt override (unless the user chose standard).
     if (preset.get() == 1) {
         system_prompt = "You are a creative assistant. Think divergently, "
@@ -101,6 +135,7 @@ void SettingsVm::save() {
     v.base_url       = base_url.get();
     v.api_key        = api_key.get();
     v.model          = model.get();
+    v.models         = models.get();
     v.system_prompt  = system_prompt.get();
     v.theme          = theme.get();
     v.language       = language.get();
@@ -113,4 +148,12 @@ void SettingsVm::save() {
     agent::i18n::set_language(language.get());
 
     settings_saved.emit();
+}
+
+void SettingsVm::select_model(const std::string& value) {
+    if (value.empty() || value == model.get()) return;
+    const auto& available = models.get();
+    if (std::find(available.begin(), available.end(), value) == available.end()) return;
+    model = value;
+    save();
 }

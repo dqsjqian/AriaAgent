@@ -49,6 +49,12 @@ public:
     void send(const std::string& text);
     void stop();
 
+    /// Recreate the lazy LLM client before the next request.
+    void reload_model_settings();
+
+    /// Update the root and access mode used by subsequent tool calls.
+    bool set_workspace(const std::string& root, int access);
+
     /// Rebuild the UI list from the current session log (invoked when the
     /// SessionStore switches/creates/deletes sessions).
     void reload_messages();
@@ -75,4 +81,7 @@ private:
     std::unique_ptr<std::thread> worker_;
     std::atomic<bool>         stop_{false};
     std::atomic<bool>         running_{false};
+    std::atomic<bool>         compacting_{false};
+    std::atomic<bool>         model_settings_dirty_{false};
+    std::atomic<bool>         skill_loaded_this_run_{false};
 };

@@ -9,7 +9,8 @@
 #   System DLLs (kernel32, d3d11, ntdll, …) are intentionally skipped.
 
 param(
-    [string]$BuildDir = "build\flavors\debug"
+    [string]$BuildDir = "build\flavors\debug",
+    [string]$Msys2Bin = "D:\worksoft\msys64\ucrt64\bin"
 )
 $ErrorActionPreference = "Stop"
 
@@ -18,11 +19,14 @@ if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
     $BuildDir = Join-Path (Split-Path -Parent $PSScriptRoot) $BuildDir
 }
 
-$Exe = Join-Path $BuildDir "aria_agent.exe"
+$AriaBin = Join-Path $BuildDir "bin"
+$Exe = Join-Path $AriaBin "aria_agent.exe"
 if (-not (Test-Path $Exe)) { Write-Host "exe not found: $Exe" -ForegroundColor Red; exit 1 }
 
-$Msys2Bin = "D:\worksoft\msys64\ucrt64\bin"
-$AriaBin  = Join-Path $BuildDir "bin"
+if (-not (Test-Path (Join-Path $Msys2Bin "objdump.exe"))) {
+    Write-Host "objdump not found under: $Msys2Bin" -ForegroundColor Red
+    exit 1
+}
 
 # ── 1. Qt deployment ────────────────────────────────────────────────────────
 $Windeployqt = Join-Path $Msys2Bin "windeployqt.exe"
@@ -67,7 +71,7 @@ while ($queue.Count -gt 0) {
     $processed[$file] = $true
     foreach ($dll in (Get-Imports $file)) {
         if ($dll -match $SystemDll) { continue }
-        $dest = Join-Path $BuildDir $dll
+        $dest = Join-Path $AriaBin $dll
         if (Test-Path $dest) { $queue += $dest; continue }
         $candidates = @($Msys2Bin, $AriaBin)
         foreach ($e in $ExtraSources) {

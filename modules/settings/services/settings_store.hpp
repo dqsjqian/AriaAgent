@@ -7,6 +7,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 namespace agent {
 
@@ -14,6 +15,7 @@ struct SettingsValues {
     std::string base_url      = "https://api.deepseek.com";
     std::string api_key;
     std::string model         = "deepseek-chat";
+    std::vector<std::string> models{"deepseek-chat"};
     std::string system_prompt;
     int         theme         = 2;   // 0=system 1=light 2=dark
     std::string language      = "zh-CN";
@@ -32,6 +34,9 @@ public:
 
     /// Persist `v` to JSON and inject into the process environment.
     void save(const SettingsValues& v) const;
+
+    /// Apply LLM values to the current process without rewriting the file.
+    void apply_runtime(const SettingsValues& v) const;
 
 private:
     std::string path() const;

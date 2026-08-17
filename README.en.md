@@ -165,7 +165,7 @@ $env:ARIA_LLM_MODEL    = "deepseek-chat"
 ### Release build
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1
+.\scripts\build.ps1 release
 ```
 
 ## 🧩 Extending

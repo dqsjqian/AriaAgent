@@ -10,6 +10,7 @@
 #include <memory>
 
 #include <QMainWindow>
+#include <QString>
 
 #include <aria/subscription.hpp>
 
@@ -59,7 +60,12 @@ private:
     void show_message_menu(const QPoint& pos);
     void on_attach_file();
     void on_workspace_mode_select();
+    void on_choose_workspace();
     void set_workspace_level(int level);   // 0=read-only, 1=write, 2=full
+    void update_workspace(const QString& path, int level);
+    void open_message_link(const QString& href);
+    void on_model_select();
+    void refresh_model_selector();
     void on_open_settings();
     void refresh_session_list();
 
@@ -89,6 +95,8 @@ private:
     QPushButton* model_pick_;
     QLabel*     phase_label_;
     QLabel*     model_label_;
+    QPushButton* workspace_label_;
+    QString     workspace_root_;
     int         ws_level_{1};
     QStackedWidget* right_panel_;
     QWidget*    right_wrap_;

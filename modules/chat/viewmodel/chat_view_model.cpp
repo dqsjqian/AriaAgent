@@ -2,10 +2,12 @@
 #include "chat/viewmodel/chat_view_model.hpp"
 
 #include "i18n/I18n.h"
+#include "agent/shell_tools.hpp"
 
 #include <aria/runtime/dispatcher.hpp>
 
 #include <cstdlib>
+#include <future>
 
 namespace {
 
@@ -47,6 +49,23 @@ ChatViewModel::~ChatViewModel() {
     sessions_.persist_current();
 }
 
+void ChatViewModel::reload_model_settings() {
+    model_settings_dirty_ = true;
+}
+
+bool ChatViewModel::set_workspace(const std::string& root, int access) {
+    if (running_ || compacting_) return false;
+    try {
+        if (root != engine_.workspace_root() || access != engine_.workspace_access()) {
+            agent::stop_all_background_processes();
+        }
+        engine_.set_workspace(root, access);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
 // ── Reload from the current session log ─────────────────────────────────────
 void ChatViewModel::reload_messages() {
     messages.clear();
@@ -71,7 +90,8 @@ void ChatViewModel::reload_messages() {
                                   agent::i18n::str("msg_tool_prefix") + tc.name,
                                   tc.args, true, tc.name}));
                 }
-                if (!m.content.empty()) push_assistant(m.content);
+                // Text attached to an assistant tool-call message is an
+                // intermediate plan, not a user-facing final answer.
             }
         }
     }
@@ -81,7 +101,12 @@ void ChatViewModel::reload_messages() {
 
 // ── Send / stop ─────────────────────────────────────────────────────────────
 void ChatViewModel::send(const std::string& input) {
-    if (input.empty() || running_) return;
+    if (input.empty() || running_ || compacting_) return;
+    if (worker_ && worker_->joinable()) worker_->join();
+    worker_.reset();
+    if (model_settings_dirty_.exchange(false)) {
+        engine_.reload_client();
+    }
 
     // Settings module writes these env vars on save; pick up any updates.
     // When unset, fall back to the localized default so the model gets a
@@ -93,11 +118,21 @@ void ChatViewModel::send(const std::string& input) {
     }
 
     running_ = true;
+    skill_loaded_this_run_ = false;
     busy = true;
     phase_text = agent::i18n::str("phase_thinking");
 
-    // User message goes into the shared log (multi-turn context).
+    // Keep an existing conversation's system message synchronized with the
+    // current settings and tool guidance before sending the next turn.
     auto& history = sessions_.current_history();
+    if (history.empty()) {
+        history.push_back({agent::Role::System, engine_.system_prompt(), {}, "", "", false});
+    } else if (history.front().role == agent::Role::System) {
+        history.front().content = engine_.system_prompt();
+    } else {
+        history.insert(history.begin(),
+                       {agent::Role::System, engine_.system_prompt(), {}, "", "", false});
+    }
     history.push_back({agent::Role::User, input, {}, "", "", false});
     push_user(input);
 
@@ -121,10 +156,22 @@ void ChatViewModel::send(const std::string& input) {
             });
         };
         cb.on_tool_call = [this](const agent::ToolCallRecord& rec) {
+            if (rec.name == "use_skill" && rec.succeeded) {
+                skill_loaded_this_run_ = true;
+            }
             post_to_ui([this, rec] {
                 if (stop_) return;
                 phase_text = agent::i18n::str("phase_tooling") + " (" + rec.name + ")";
+                if (streaming_row_) {
+                    messages.remove_at(messages.size() - 1);
+                    streaming_row_.reset();
+                }
+                streaming_text = "";
                 push_tool(rec);
+                streaming_row_ = std::make_shared<UiMessage>(
+                    UiMessage{agent::Role::Assistant, "Agent",
+                              agent::i18n::str("msg_agent"), "", false, ""});
+                messages.push_back(streaming_row_);
             });
         };
         cb.on_phase = [this](agent::AgentPhase p) {
@@ -139,17 +186,23 @@ void ChatViewModel::send(const std::string& input) {
         };
         cb.on_approval = [this](const std::string& tool,
                                 const std::string& args) {
-            // Full Access (level 2) skips the prompt entirely.
-            if (const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
-                mode && *mode == '2') {
-                return true;
+            // Full Access skips ordinary confirmations, but never treats a
+            // loaded Skill document as user approval for dangerous actions.
+            if (!skill_loaded_this_run_) {
+                if (const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
+                    mode && *mode == '2') {
+                    return true;
+                }
             }
-            // The VIEW owns the approval prompt; VM just asks. If no UI is
-            // injected (headless/mobile shell w/o prompt yet) → fail closed.
+            // The VIEW owns the approval prompt. The worker must wait for the
+            // UI answer without capturing stack references into a queued task.
             if (!approval_ui) return false;
-            bool approved = false;
-            post_to_ui([&] { approved = approval_ui(tool, args); });
-            return approved;
+            auto answer = std::make_shared<std::promise<bool>>();
+            auto future = answer->get_future();
+            post_to_ui([this, tool, args, answer] {
+                answer->set_value(approval_ui && approval_ui(tool, args));
+            });
+            return future.get();
         };
         cb.on_error = [this](const std::string& e) {
             post_to_ui([this, e] {
@@ -182,6 +235,7 @@ void ChatViewModel::stop() {
     worker_.reset();
     stop_ = false;
     running_ = false;
+    compacting_ = false;
     busy = false;
 }
 
@@ -193,11 +247,11 @@ void ChatViewModel::finalize_success() {
         streaming_row_.reset();
     }
     running_ = false;
-    busy = false;
     phase_text = "";
     streaming_text = "";
     sessions_.persist_current();
     maybe_compact();
+    if (!compacting_) busy = false;
 }
 
 void ChatViewModel::finalize_error(const std::string& err) {
@@ -237,7 +291,11 @@ void ChatViewModel::maybe_compact() {
     prefix.push_back(history.front());                    // system prompt
     for (size_t i = 1; i < cut; ++i) prefix.push_back(history[i]);
 
+    if (worker_ && worker_->joinable()) worker_->join();
+    worker_.reset();
     const std::string old_phase = phase_text.get();
+    compacting_ = true;
+    busy = true;
     phase_text = agent::i18n::str("phase_compacting");
 
     worker_ = std::make_unique<std::thread>([this, prefix, cut, old_phase] {
@@ -248,6 +306,8 @@ void ChatViewModel::maybe_compact() {
             ok = true;
         } catch (const std::exception&) { /* keep history as-is on failure */ }
         post_to_ui([this, prefix, cut, summary, ok, old_phase] {
+            compacting_ = false;
+            busy = false;
             phase_text = old_phase;
             if (!ok || summary.empty()) return;
 

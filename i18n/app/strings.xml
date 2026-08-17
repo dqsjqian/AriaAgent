@@ -53,7 +53,8 @@
     <string name="msg_error_prefix">⚠ 错误: </string>
     <string name="msg_compacted">[对话压缩摘要] </string>
 
-    <!-- feedback -->
+    <!-- message actions / feedback -->
+    <string name="copy_message">复制消息</string>
     <string name="feedback_helpful">👍 有帮助</string>
     <string name="feedback_not_helpful">👎 没帮助</string>
 

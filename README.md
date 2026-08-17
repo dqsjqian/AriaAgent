@@ -97,28 +97,27 @@ AriaAgent/
 git submodule update --init
 ```
 
-### 构建(macOS)
+### 一键构建(macOS / Linux)
 
 ```bash
-cmake -S . -B build/flavors/debug -DCMAKE_BUILD_TYPE=Debug \
-      -DCMAKE_PREFIX_PATH="$(brew --prefix qt)"
-cmake --build build/flavors/debug -j 8
-./build/flavors/debug/bin/aria_agent
+./scripts/build.sh             # Release
+./scripts/build.sh debug       # Debug
+./scripts/build.sh run         # Debug 构建并运行
+./scripts/build.sh clean       # 清理全部构建产物
 ```
 
-### 构建(Windows)
+脚本会自动初始化 Aria 子模块、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt ./scripts/build.sh` 指定。
+
+### 一键构建(Windows)
 
 ```powershell
-# MSYS2 工具链
-export PATH="/d/worksoft/msys64/ucrt64/bin:$PATH"
-
-cmake -S . -B build/flavors/debug -G Ninja -DCMAKE_BUILD_TYPE=Debug `
-      -DCMAKE_PREFIX_PATH="D:/worksoft/msys64/ucrt64"
-cmake --build build/flavors/debug -j 8
-
-# 部署运行时 DLL(windeployqt + 递归依赖拷贝,双击即可运行)
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-dlls.ps1
+.\scripts\build.ps1             # Release + 部署运行时 DLL
+.\scripts\build.ps1 debug       # Debug + 部署运行时 DLL
+.\scripts\build.ps1 run         # Debug 构建、部署并运行
+.\scripts\build.ps1 clean       # 清理全部构建产物
 ```
+
+脚本会自动探测 MSYS2 UCRT64、Qt6 和 Ninja；非标准安装位置可通过 `$env:MSYS2_ROOT`、`$env:QT_DIR` 指定。
 
 ### 配置 & 运行
 
@@ -143,7 +142,7 @@ $env:ARIA_LLM_MODEL    = "deepseek-chat"
 ### 发布构建
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-release.ps1
+.\scripts\build.ps1 release
 ```
 
 ## 🧩 扩展

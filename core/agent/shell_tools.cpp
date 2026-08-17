@@ -2,6 +2,7 @@
 #include "agent/shell_tools.hpp"
 
 #include "agent/subprocess.hpp"
+#include "agent/workspace.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -17,15 +18,13 @@ using json = nlohmann::json;
 
 namespace {
 
-constexpr const char* kWorkspace = "D:/Coding/AriaAgent";   // default sandbox root
-
-// Workspace trust gate: refuse in Read Only, allow in Workspace Write / Full.
-std::optional<json> ws_read_only_deny(const char* op) {
-    const char* mode = std::getenv("ARIA_WORKSPACE_WRITE");
-    if (mode && *mode && *mode != '1' && *mode != '2') {
+// A working directory is not an OS sandbox. Only Full Access may execute
+// arbitrary shell commands; lower modes use the path-aware file tools.
+std::optional<json> shell_access_deny(const ToolContext& ctx, const char* op) {
+    if (ctx.workspace_access != 2) {
         return json{{"error", op}, {"reason",
-            "workspace mode is Read Only — switch the input bar dropdown "
-            "to Workspace Write or Full Access to use this tool"}};
+            "shell execution requires Full Access; use workspace file tools "
+            "in Read Only or Workspace Write mode"}};
     }
     return std::nullopt;
 }
@@ -41,14 +40,14 @@ ProcRegistry& procs() {
     return r;
 }
 
-json run_command_impl(const json& args, ToolContext&) {
-    if (auto deny = ws_read_only_deny("run_command")) return *deny;
+json run_command_impl(const json& args, ToolContext& ctx) {
+    if (auto deny = shell_access_deny(ctx, "run_command")) return *deny;
     const std::string cmd = args.value("command", "");
     const int timeout_ms = args.value("timeout_ms", 30000);
     if (cmd.empty()) return json{{"error", "command is required"}};
 
     const auto t0 = std::chrono::steady_clock::now();
-    const ProcResult r = run_sync(cmd, timeout_ms);
+    const ProcResult r = run_sync(cmd, timeout_ms, ctx.workspace_root);
     const auto t1 = std::chrono::steady_clock::now();
     return json{
         {"exit_code", r.exit_code},
@@ -58,12 +57,12 @@ json run_command_impl(const json& args, ToolContext&) {
     };
 }
 
-json run_background_impl(const json& args, ToolContext&) {
-    if (auto deny = ws_read_only_deny("run_in_background")) return *deny;
+json run_background_impl(const json& args, ToolContext& ctx) {
+    if (auto deny = shell_access_deny(ctx, "run_in_background")) return *deny;
     const std::string cmd = args.value("command", "");
     if (cmd.empty()) return json{{"error", "command is required"}};
 
-    BgProc* p = bg_start(cmd);
+    BgProc* p = bg_start(cmd, ctx.workspace_root);
     if (!p) return json{{"error", "failed to start command"}};
     std::lock_guard<std::mutex> lk(procs().mu);
     const int handle = procs().next_handle++;
@@ -86,7 +85,6 @@ json read_output_impl(const json& args, ToolContext&) {
 }
 
 json kill_process_impl(const json& args, ToolContext&) {
-    if (auto deny = ws_read_only_deny("kill_process")) return *deny;
     const int handle = args.value("handle", -1);
     std::lock_guard<std::mutex> lk(procs().mu);
     auto it = procs().procs.find(handle);
@@ -99,10 +97,13 @@ json kill_process_impl(const json& args, ToolContext&) {
     return json{{"killed", true}};
 }
 
-json list_directory_impl(const json& args, ToolContext&) {
-    const std::string path = args.value("path", kWorkspace);
+json list_directory_impl(const json& args, ToolContext& ctx) {
+    const std::string path = args.value("path", ".");
+    std::string error;
+    const auto resolved = resolve_workspace_path(ctx, path, true, &error);
+    if (!resolved) return json{{"error", error}};
     std::error_code ec;
-    std::filesystem::directory_iterator it(path, ec);
+    std::filesystem::directory_iterator it(*resolved, ec);
     if (ec) return json{{"error", "directory does not exist: " + path}};
 
     json items = json::array();
@@ -126,6 +127,16 @@ json list_directory_impl(const json& args, ToolContext&) {
 }
 
 } // namespace
+
+void stop_all_background_processes() {
+    std::lock_guard<std::mutex> lk(procs().mu);
+    for (auto& [handle, process] : procs().procs) {
+        (void)handle;
+        bg_kill(process);
+        bg_close(process);
+    }
+    procs().procs.clear();
+}
 
 void register_shell_tools(ToolRegistry& reg) {
     reg.register_tool({

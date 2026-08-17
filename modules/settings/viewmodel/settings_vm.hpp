@@ -7,6 +7,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include <aria/aria.hpp>
 #include <aria/detail/typed_signal.hpp>
@@ -30,6 +31,10 @@ public:
     aria::Property<std::string> base_url;
     aria::Property<std::string> api_key;
     aria::Property<std::string> model;
+    aria::Property<std::vector<std::string>> models;
+
+    /// Select and persist an already configured model.
+    void select_model(const std::string& value);
 
     // ── General page ───────────────────────────────────────────────────────
     aria::Property<std::string> system_prompt;

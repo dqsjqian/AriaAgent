@@ -18,7 +18,7 @@ constexpr const char* kKeys[] = {
     // workspace trust levels
     "ws_read_only", "ws_workspace_write", "ws_full_access", "ws_tooltip",
     // phases (error flash) + feedback menu
-    "phase_error", "feedback_helpful", "feedback_not_helpful",
+    "phase_error", "copy_message", "feedback_helpful", "feedback_not_helpful",
     // approval prompt (injected by the shell, text owned here)
     "approve_title", "approve_body",
 };

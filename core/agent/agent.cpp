@@ -6,20 +6,100 @@
 // aria reactive state directly.
 #include "agent/agent.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <cstddef>
+#include <cstdlib>
+#include <filesystem>
 #include <stdexcept>
 #include <thread>
+#include <utility>
 
 namespace agent {
 
 using json = nlohmann::json;
 
+namespace {
+
+void remove_incomplete_tool_groups(MessageList& messages) {
+    MessageList repaired;
+    repaired.reserve(messages.size());
+    for (size_t i = 0; i < messages.size();) {
+        const auto& message = messages[i];
+        if (message.role == Role::Tool) {
+            ++i; // orphaned tool output
+            continue;
+        }
+        if (message.role != Role::Assistant || message.tool_calls.empty()) {
+            repaired.push_back(message);
+            ++i;
+            continue;
+        }
+
+        std::vector<std::string> expected;
+        bool valid = true;
+        for (const auto& call : message.tool_calls) {
+            if (call.id.empty() || call.name.empty() ||
+                std::find(expected.begin(), expected.end(), call.id) != expected.end()) {
+                valid = false;
+                break;
+            }
+            expected.push_back(call.id);
+        }
+
+        size_t end = i + 1;
+        std::vector<std::string> outputs;
+        while (end < messages.size() && messages[end].role == Role::Tool) {
+            const auto& id = messages[end].tool_call_id;
+            if (id.empty() || std::find(outputs.begin(), outputs.end(), id) != outputs.end()) {
+                valid = false;
+            } else {
+                outputs.push_back(id);
+            }
+            ++end;
+        }
+        for (const auto& id : expected) {
+            if (std::find(outputs.begin(), outputs.end(), id) == outputs.end()) valid = false;
+        }
+        if (outputs.size() != expected.size()) valid = false;
+
+        if (valid) {
+            repaired.insert(repaired.end(), messages.begin() + static_cast<std::ptrdiff_t>(i),
+                            messages.begin() + static_cast<std::ptrdiff_t>(end));
+        }
+        i = end;
+    }
+    messages = std::move(repaired);
+}
+
+} // namespace
+
 AgentEngine::AgentEngine(ToolRegistry registry, Config cfg,
-                         std::unique_ptr<LlmClient> client)
+                         std::unique_ptr<LlmClient> client,
+                         std::string workspace_root)
     : registry_(std::move(registry)),
       cfg_(std::move(cfg)),
-      client_(std::move(client)) {}
+      workspace_root_(std::move(workspace_root)),
+      client_(std::move(client)) {
+    if (workspace_root_.empty()) {
+        if (const char* configured = std::getenv("ARIA_WORKSPACE_ROOT"); configured && *configured) {
+            workspace_root_ = configured;
+        } else {
+            std::error_code ec;
+            workspace_root_ = std::filesystem::current_path(ec).string();
+        }
+    }
+    std::error_code ec;
+    const auto canonical = std::filesystem::weakly_canonical(workspace_root_, ec);
+    if (!ec) workspace_root_ = canonical.string();
+
+    for (const auto& guidance : registry_.prompt_guidance()) {
+        if (!tool_guidance_.empty()) tool_guidance_ += "\n\n";
+        tool_guidance_ += guidance;
+    }
+    set_system_prompt(std::move(cfg_.system_prompt));
+}
 
 AgentEngine::~AgentEngine() = default;
 
@@ -30,8 +110,31 @@ LlmClient& AgentEngine::client() {
     return *client_;
 }
 
+void AgentEngine::set_system_prompt(std::string prompt) {
+    cfg_.system_prompt = std::move(prompt);
+    if (!tool_guidance_.empty()) {
+        if (!cfg_.system_prompt.empty()) cfg_.system_prompt += "\n\n";
+        cfg_.system_prompt += tool_guidance_;
+    }
+}
+
+void AgentEngine::set_workspace(std::string root, int access) {
+    std::error_code ec;
+    const auto canonical = std::filesystem::canonical(root, ec);
+    if (ec || !std::filesystem::is_directory(canonical, ec) || ec) {
+        throw std::invalid_argument("workspace directory does not exist");
+    }
+    workspace_root_ = canonical.string();
+    workspace_access_ = access < 0 || access > 2 ? 1 : access;
+}
+
+void AgentEngine::reload_client() {
+    client_.reset();
+}
+
 std::string AgentEngine::run(MessageList& messages, const AgentCallbacks& cb) {
     trace_.clear();
+    remove_incomplete_tool_groups(messages);
 
     // messages is the caller's conversation log. On success we append the
     // assistant reply below; tool messages are appended inline during the loop.
@@ -64,14 +167,27 @@ std::string AgentEngine::run(MessageList& messages, const AgentCallbacks& cb) {
             ChatMessage assistant_msg;
             assistant_msg.role = Role::Assistant;
             assistant_msg.content = assistant_text;
-            for (auto& tc : pending_tool_calls) {
-                if (tc.id.empty())
-                    tc.id = "call_" + std::to_string(round) + "_" + tc.name;
+            for (size_t i = 0; i < pending_tool_calls.size(); ++i) {
+                auto& tc = pending_tool_calls[i];
+                if (tc.name.empty() || !registry_.contains(tc.name)) {
+                    const std::string label = tc.name.empty() ? "<empty>" : tc.name;
+                    const std::string msg = "Model returned an unavailable tool: " + label;
+                    if (cb.on_phase) cb.on_phase(AgentPhase::Error);
+                    if (cb.on_error) cb.on_error(msg);
+                    throw std::runtime_error(msg);
+                }
+                if (tc.id.empty()) {
+                    tc.id = "call_" + std::to_string(round) + "_" +
+                            std::to_string(i) + "_" + tc.name;
+                }
                 assistant_msg.tool_calls.push_back(std::move(tc));
             }
-            messages.push_back(std::move(assistant_msg));
+            // Keep the local message intact while executing its tool calls.
+            // The conversation must contain this assistant message immediately
+            // before the matching role=tool result messages.
+            messages.push_back(assistant_msg);
 
-            ToolContext ctx;
+            ToolContext ctx{workspace_root_, workspace_access_, nullptr};
 
             // Execution model (ported from harness tool-calls.ts):
             //  * concurrency-safe tools run on a bounded parallel pool;
