@@ -11,9 +11,9 @@ Provider-agnostic · True token-level SSE streaming · Tool-call chain visualiza
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dqsjqian/Aria)
 
-</div>
+[English](README.en.md) | [简体中文](README.md)
 
-> **简体中文** | [English](README.en.md)
+</div>
 
 ---
 
