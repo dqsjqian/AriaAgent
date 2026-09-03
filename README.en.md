@@ -105,6 +105,23 @@ mobile shells install their own; the VM never knows which platform it is on.
 injects (QMessageBox / UIAlertController / Android Dialog). The VM never pops
 a dialog itself.
 
+## 🖼 Screenshots
+
+AriaAgent is built on the Aria C++20 MVVM framework plus the Qt6 adapter. Both
+core views below come from the macOS build and are driven entirely by Aria's
+reactive engine (`Property` / `ObservableList` / `Command`).
+
+| View | Screenshot |
+|---|---|
+| Main chat (streaming + tool-call timeline) | ![AriaAgent-Mac-main](docs/marketing/images/AriaAgent-Mac-main.png) |
+| Settings (General / Model / Plugins / Agent Presets) | ![AriaAgent-Mac-setting](docs/marketing/images/AriaAgent-Mac-setting.png) |
+
+> **Why no Windows / Linux screenshots?** The macOS shell is built on **the Aria
+> framework + the Qt6 adapter**; the Windows and Linux builds look identical to
+> the macOS one (same Qt widgets + the same C++ ViewModel), so duplicate
+> screenshots would add nothing. Windows additionally has two independently
+> validated toolchains — MSVC + Qt6 and MSYS2 UCRT64.
+
 ## 🚀 Quick start
 
 ### Prerequisites
