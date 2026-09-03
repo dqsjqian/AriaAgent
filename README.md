@@ -11,6 +11,8 @@ Provider 无关 · 真流式 SSE · 工具调用链可视化 · 权限审批 · 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dqsjqian/Aria)
 
+[English](README.en.md) | [简体中文](README.md)
+
 </div>
 
 ---
