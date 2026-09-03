@@ -52,7 +52,18 @@ Agent 循环(思考 → 调工具 → 观察 → 再思考)用 C++20 协程实�
 - **消息反馈** —— 右键 👍/👎,持久化
 - **权限审批** —— 危险工具执行前模态确认,默认拒绝(fail-closed)
 
-### 🏗 架构分层(core 纯 C++ + 多平台壳)
+### 🖼 截图预览
+
+AriaAgent 基于 Aria C++20 MVVM + Qt6 适配器实现。下图来自 macOS 版本，对话与设置两个核心界面均使用 Aria 响应式引擎（`Property` / `ObservableList` / `Command`）驱动。
+
+| 视图 | 截图 |
+|---|---|
+| 主界面（对话 + 工具调用链） | ![AriaAgent-Mac-main](docs/marketing/images/AriaAgent-Mac-main.png) |
+| 设置（General / Model / Plugins / Agent Presets） | ![AriaAgent-Mac-setting](docs/marketing/images/AriaAgent-Mac-setting.png) |
+
+> **关于 Windows / Linux 截图**：Mac 的壳基于 **Aria 框架 + Qt6 Adapter** 构建，在 Windows / Linux 上跑出来的程序与 Mac 视觉上完全一致（同一份 Qt 控件 + 同一份 C++ ViewModel），所以不必重复截图。Windows 下还另有 MSVC + Qt6 与 MSYS2 UCRT64 两条工具链可以独立验证。
+
+## 🏗 架构分层（core 纯 C++ + 多平台壳）
 
 ```
 AriaAgent/
