@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ariaagent-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: Qt desktop (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          persist-credentials: false
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build g++-13 qt6-base-dev libssl-dev
+          echo "CC=gcc-13" >> "$GITHUB_ENV"
+          echo "CXX=g++-13" >> "$GITHUB_ENV"
+
+      - name: Install macOS build dependencies
+        if: runner.os == 'macOS'
+        run: |
+          brew install ninja qt openssl@3
+          echo "CMAKE_PREFIX_PATH=$(brew --prefix qt);$(brew --prefix openssl@3)" >> "$GITHUB_ENV"
+
+      - name: Configure
+        run: |
+          cmake -S . -B build/ci -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH:-}" \
+            -DARIA_TARGET_QT=ON
+
+      - name: Build desktop application
+        run: cmake --build build/ci --parallel 3
+
+      - name: Upload build diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ariaagent-diagnostics-${{ matrix.os }}
+          path: |
+            build/ci/CMakeCache.txt
+            build/ci/CMakeFiles/CMakeConfigureLog.yaml
+          if-no-files-found: ignore
