@@ -14,6 +14,29 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  vs2026:
+    name: Qt desktop (VS2026 MSVC)
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 35
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          persist-credentials: false
+      - uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: win64_msvc2022_64
+          cache: true
+      - name: Configure and build with Visual Studio 2026
+        run: |
+          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIA_TARGET_QT=ON
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build build/ci-vs2026 --config Release --parallel 3
+
   windows:
     name: Qt desktop (Windows UCRT64)
     runs-on: windows-2022
