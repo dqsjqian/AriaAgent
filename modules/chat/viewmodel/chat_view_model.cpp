@@ -16,11 +16,11 @@ namespace {
 // own — the VM stays platform-agnostic.
 template <typename F>
 void post_to_ui(F&& f) {
-    auto& d = aria::runtime::main_dispatcher();
-    if (d.is_main_thread()) {
+    auto d = aria::runtime::main_dispatcher();
+    if (d->is_main_thread()) {
         f();
     } else {
-        d.post(std::forward<F>(f));
+        d->post(std::forward<F>(f));
     }
 }
 
