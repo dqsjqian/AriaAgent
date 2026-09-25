@@ -15,15 +15,10 @@
 
 # Third-party dependencies, hash-pinned (the Continuo way — no vendored
 # sources, no submodules). Aria itself stays a git submodule by design:
-# sibling project, four-library source linkage.
+# sibling project, four-library source linkage. Aria is added before this
+# directory and already provides nlohmann_json::nlohmann_json from its own
+# pinned fetch; this file only pins Continuo.
 include(ariaFetchPinned)
-
-aria_fetch_pinned_archive(
-    NAME json
-    VERSION 3.12.0
-    URL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz"
-    SHA256 42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
-)
 
 aria_fetch_pinned_archive(
     NAME continuo
@@ -48,12 +43,10 @@ add_library(ariaagent_core STATIC ${CORE_SRC})
 target_include_directories(ariaagent_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
-target_include_directories(ariaagent_core SYSTEM PUBLIC
-    ${ARIA_PINNED_JSON_SOURCE_DIR}/include
-)
 target_link_libraries(ariaagent_core PUBLIC
     aria::binding      # transitively pulls runtime/async/core/abi
     aria::async
+    nlohmann_json::nlohmann_json   # provided by Aria's pinned fetch above
     continuo::transport
     continuo::http
     continuo::tls

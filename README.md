@@ -2,11 +2,11 @@
 
 # ✦ AriaAgent
 
-**工业级 C++20 Agent 工具框架 GUI** · 基于 [Aria](https://github.com/dqsjqian/Aria) (C++20 MVVM)
+**工业级 C++23 Agent 工具框架 GUI** · 基于 [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
 Provider 无关 · 真流式 SSE · 工具调用链可视化 · 权限审批 · MIT License
 
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![C++20](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
 [![Qt6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dqsjqian/Aria)
@@ -19,16 +19,16 @@ Provider 无关 · 真流式 SSE · 工具调用链可视化 · 权限审批 · 
 
 ## 这是什么？
 
-**AriaAgent** 是一个基于 Aria(C++20 MVVM 框架)构建的 **provider 无关 LLM Agent 工具框架 GUI**。
+**AriaAgent** 是一个基于 Aria(C++23 MVVM 框架)构建的 **provider 无关 LLM Agent 工具框架 GUI**。
 它不绑定任何一家模型厂商 —— DeepSeek / OpenAI / Kimi / Qwen / GLM 等所有 **OpenAI 兼容端点**开箱即用,换模型只需改一行配置,零代码改动、无需重新编译。
 
-Agent 循环(思考 → 调工具 → 观察 → 再思考)用 C++20 协程实现,UI 层通过 Aria 的响应式引擎(Property / ObservableList)与引擎层彻底解耦。整体设计大量借鉴 DeepSeek 官方 harness 的架构精髓(事件日志 = 唯一事实源、工具 schema 驱动、权限默认拒绝)。
+Agent 循环(思考 → 调工具 → 观察 → 再思考)用 C++23 协程实现,UI 层通过 Aria 的响应式引擎(Property / ObservableList)与引擎层彻底解耦。整体设计大量借鉴 DeepSeek 官方 harness 的架构精髓(事件日志 = 唯一事实源、工具 schema 驱动、权限默认拒绝)。
 
 ## ✨ 特性
 
 ### 🧠 Agent 核心
 - **Provider 无关** —— 抽象 `LlmClient` 接口 + `OpenAiCompatClient` 实现,任何 OpenAI 兼容 API 无缝接入
-- **真流式输出** —— token 级 SSE 流式渲染(cpp-httplib 0.53.1 `ContentReceiver`),不是缓冲式假流式
+- **真流式输出** —— token 级 SSE 流式渲染（Continuo HTTP 客户端逐块读取响应体）,不是缓冲式假流式
 - **Agent 循环** —— 协程式 思考/工具调用/观察 循环,多工具**有界并行**执行(exclusive 屏障 + 并行池,结果按模型顺序提交),硬性轮数上限防失控
 - **工具注册表** —— 一次注册即插即用:`Tool{name, desc, schema, fn}`,无硬编码分支
 - **参数校验** —— 轻量 JSON-Schema 校验器(类型/必填/枚举/范围),错误信息带 JSON 路径
@@ -56,7 +56,7 @@ Agent 循环(思考 → 调工具 → 观察 → 再思考)用 C++20 协程实�
 
 ### 🖼 截图预览
 
-AriaAgent 基于 Aria C++20 MVVM + Qt6 适配器实现。下图来自 macOS 版本，对话与设置两个核心界面均使用 Aria 响应式引擎（`Property` / `ObservableList` / `Command`）驱动。
+AriaAgent 基于 Aria C++23 MVVM + Qt6 适配器实现。下图来自 macOS 版本，对话与设置两个核心界面均使用 Aria 响应式引擎（`Property` / `ObservableList` / `Command`）驱动。
 
 | 视图 | 截图 |
 |---|---|
@@ -101,7 +101,7 @@ AriaAgent/
 ## 🚀 快速开始
 
 ### 前置
-- **Windows**:MSYS2 UCRT64(GCC 13+)、Qt6、OpenSSL、CMake ≥ 3.20
+- **Windows**:MSYS2 UCRT64(GCC 14+)、Qt6、OpenSSL、CMake ≥ 3.20
 - **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.20
 - Aria 子模块需先初始化(注意:**不要** `--recursive` —— openssl submodule
   自带 10 个测试子模块,递归会拉很久):
