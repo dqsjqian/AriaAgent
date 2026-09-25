@@ -103,8 +103,12 @@ Endpoint parse_endpoint(std::string url) {
         const std::string_view port_text(authority.data() + colon + 1,
                                          authority.size() - colon - 1);
         int parsed = 0;
-        const auto [end, ec] = std::from_chars(port_text.begin(), port_text.end(), parsed);
-        if (ec == std::errc{} && end == port_text.end() && parsed > 0 && parsed <= 65535) {
+        // Raw pointers, not string_view iterators: MSVC's iterators are class
+        // types and do not bind to from_chars' const char* overloads.
+        const char* first = port_text.data();
+        const char* last = port_text.data() + port_text.size();
+        const auto [end, ec] = std::from_chars(first, last, parsed);
+        if (ec == std::errc{} && end == last && parsed > 0 && parsed <= 65535) {
             ep.port = static_cast<std::uint16_t>(parsed);
             authority.resize(colon);
         }
