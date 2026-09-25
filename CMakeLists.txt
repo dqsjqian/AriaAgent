@@ -14,9 +14,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(AriaAgent LANGUAGES CXX)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+enable_testing()
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 
 if(MSVC)
     add_compile_options(/utf-8)
@@ -46,6 +48,7 @@ add_subdirectory(${ARIA_DIR} aria)
 
 # ── Pure-C++ core (agent engine + services + module API) ─────────────────────
 add_subdirectory(core)
+add_subdirectory(tests)
 
 # ── Business modules (plugin pattern; see modules/CMakeLists.txt) ───────────
 add_subdirectory(modules)
