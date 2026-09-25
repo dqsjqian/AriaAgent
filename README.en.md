@@ -2,11 +2,11 @@
 
 # ✦ AriaAgent
 
-**Industrial-grade C++20 Agent Tooling Framework GUI** · Built on [Aria](https://github.com/dqsjqian/Aria) (C++20 MVVM)
+**Industrial-grade C++23 Agent Tooling Framework GUI** · Built on [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
 Provider-agnostic · True token-level SSE streaming · Tool-call chain visualization · Permission approval · MIT License
 
-[![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
+[![C++20](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
 [![Qt6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dqsjqian/Aria)
@@ -20,13 +20,13 @@ Provider-agnostic · True token-level SSE streaming · Tool-call chain visualiza
 ## What is it?
 
 **AriaAgent** is a **provider-agnostic LLM Agent tooling framework GUI** built on
-[Aria](https://github.com/dqsjqian/Aria), an industrial-grade C++20 MVVM framework.
+[Aria](https://github.com/dqsjqian/Aria), an industrial-grade C++23 MVVM framework.
 
 It is not tied to any single model vendor — every **OpenAI-compatible endpoint**
 (DeepSeek / OpenAI / Kimi / Qwen / GLM / …) works out of the box. Switching
 providers is a one-line configuration change: no code edits, no recompile.
 
-The agent loop (think → call tools → observe → repeat) is written with C++20
+The agent loop (think → call tools → observe → repeat) is written with C++23
 coroutines, and the UI layer is fully decoupled from the engine through Aria's
 reactive core (`Property` / `ObservableList`). The overall design borrows the
 architectural essence of the official DeepSeek harness: event log as the single
@@ -37,8 +37,8 @@ source of truth, schema-driven tools, and fail-closed permissions.
 ### 🧠 Agent Core
 - **Provider-agnostic** — abstract `LlmClient` interface + `OpenAiCompatClient`
   implementation; any OpenAI-compatible API plugs in seamlessly
-- **True streaming** — token-level SSE rendering (cpp-httplib 0.53.1
-  `ContentReceiver`), not buffered fake streaming
+- **True streaming** — token-level SSE rendering (Continuo's
+  chunked body reads), not buffered fake streaming
 - **Agent loop** — coroutine think/tool/observe loop with **bounded parallel**
   tool execution (exclusive barrier + parallel pool, results committed in model
   order) and a hard round cap to prevent runaway
@@ -107,7 +107,7 @@ a dialog itself.
 
 ## 🖼 Screenshots
 
-AriaAgent is built on the Aria C++20 MVVM framework plus the Qt6 adapter. Both
+AriaAgent is built on the Aria C++23 MVVM framework plus the Qt6 adapter. Both
 core views below come from the macOS build and are driven entirely by Aria's
 reactive engine (`Property` / `ObservableList` / `Command`).
 
@@ -125,7 +125,7 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 ## 🚀 Quick start
 
 ### Prerequisites
-- **Windows**: MSYS2 UCRT64 (GCC 13+), Qt6, OpenSSL, CMake ≥ 3.20
+- **Windows**: MSYS2 UCRT64 (GCC 14+), Qt6, OpenSSL, CMake ≥ 3.20
 - **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.20
 - Initialize the Aria submodule first (do **not** use `--recursive` — the
   vendored openssl submodule carries 10 test-only submodules that take forever
