@@ -82,7 +82,7 @@ AriaAgent/
 │       ├── viewmodel/       #   AppText(UI 文案服务)
 │       └── platforms/qt/    #   ★ 平台壳:main.cpp(QtDispatcher)/
 │                            #     main_window / markdown_render
-├── third_party/aria         # vendored 框架(submodule)
+├── build/deps/aria          # pinned Aria fetch (tools/ci/fetch_aria.py)
 ├── core/CMakeLists.txt      # ariaagent_core
 └── modules/app/platforms/qt/CMakeLists.txt  # aria_agent 可执行
 ```
@@ -103,11 +103,10 @@ AriaAgent/
 ### 前置
 - **Windows**:MSYS2 UCRT64(GCC 14+)、Qt6、OpenSSL、CMake ≥ 3.20
 - **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.20
-- Aria 子模块需先初始化(注意:**不要** `--recursive` —— openssl submodule
-  自带 10 个测试子模块,递归会拉很久):
+- Aria 框架不再使用 git submodule，首次构建前先拉取钉定版本:
 
 ```bash
-git submodule update --init
+python tools/ci/fetch_aria.py
 ```
 
 ### 一键构建(macOS / Linux)
