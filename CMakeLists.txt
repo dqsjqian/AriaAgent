@@ -5,7 +5,7 @@
 #    core/           pure C++ — zero Qt. Engine + ViewModel, platform-agnostic.
 #                    mobile shells (iOS/Android) reuse this verbatim.
 #    platform/qt     Qt6 desktop shell — the ONLY place allowed to see Qt.
-#    third_party/aria  vendored framework (git submodule)
+#    build/deps/aria   pinned Aria fetch (tools/ci/fetch_aria.py)
 #
 #  One core, many shells. Platform switch:
 #    -DARIA_TARGET_QT=ON   Qt desktop (default)
@@ -30,12 +30,15 @@ if(NOT ARIA_TARGET_QT)
     message(FATAL_ERROR "Only ARIA_TARGET_QT is implemented; other shells planned")
 endif()
 
-# ── Aria submodule (must be checked out: git submodule update --init) ───────
-set(ARIA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/aria)
+# ── Aria (pinned fetch; no git submodule) ───────────────────────────────────
+set(ARIA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria CACHE PATH
+    "Pinned Aria source tree, created by tools/ci/fetch_aria.py")
 if(NOT EXISTS ${ARIA_DIR}/CMakeLists.txt)
     message(FATAL_ERROR
-        "Aria submodule missing. Run:\n"
-        "  git submodule update --init --recursive")
+        "Aria not found at ${ARIA_DIR}.\n"
+        "Run once before configuring:\n"
+        "  python tools/ci/fetch_aria.py\n"
+        "(no git submodules -- Aria is fetched at a pinned commit SHA)")
 endif()
 
 set(ARIA_BUILD_TESTS     OFF CACHE BOOL "" FORCE)

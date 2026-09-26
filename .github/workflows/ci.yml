@@ -24,8 +24,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: true
           persist-credentials: false
+      - name: Fetch pinned Aria
+        run: python tools/ci/fetch_aria.py
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
@@ -47,8 +48,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: true
           persist-credentials: false
+      - name: Fetch pinned Aria
+        run: python tools/ci/fetch_aria.py
       - uses: msys2/setup-msys2@v2
         with:
           msystem: UCRT64
@@ -78,8 +80,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: true
           persist-credentials: false
+      - name: Fetch pinned Aria
+        run: python tools/ci/fetch_aria.py
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'
