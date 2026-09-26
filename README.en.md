@@ -6,7 +6,7 @@
 
 Provider-agnostic · True token-level SSE streaming · Tool-call chain visualization · Permission approval · MIT License
 
-[![C++20](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
 [![Qt6](https://img.shields.io/badge/Qt-6-green.svg)](https://www.qt.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com/dqsjqian/Aria)
