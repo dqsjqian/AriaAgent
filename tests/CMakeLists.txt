@@ -1,4 +1,4 @@
-# AriaAgent tests — currently the Continuo-backed LLM client smoke test.
+# AriaAgent tests — currently the Mira-backed LLM client smoke test.
 
 add_executable(llm_client_smoke llm_client_smoke.cpp)
 target_link_libraries(llm_client_smoke PRIVATE ariaagent_core)

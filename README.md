@@ -28,7 +28,7 @@ Agent 循环(思考 → 调工具 → 观察 → 再思考)用 C++23 协程实�
 
 ### 🧠 Agent 核心
 - **Provider 无关** —— 抽象 `LlmClient` 接口 + `OpenAiCompatClient` 实现,任何 OpenAI 兼容 API 无缝接入
-- **真流式输出** —— token 级 SSE 流式渲染（Continuo HTTP 客户端逐块读取响应体）,不是缓冲式假流式
+- **真流式输出** —— token 级 SSE 流式渲染（Mira HTTP 客户端逐块读取响应体）,不是缓冲式假流式
 - **Agent 循环** —— 协程式 思考/工具调用/观察 循环,多工具**有界并行**执行(exclusive 屏障 + 并行池,结果按模型顺序提交),硬性轮数上限防失控
 - **工具注册表** —— 一次注册即插即用:`Tool{name, desc, schema, fn}`,无硬编码分支
 - **参数校验** —— 轻量 JSON-Schema 校验器(类型/必填/枚举/范围),错误信息带 JSON 路径

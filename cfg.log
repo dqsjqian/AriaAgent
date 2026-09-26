@@ -1,0 +1,14 @@
+-- Selecting Windows SDK version 10.0.28000.0 to target Windows 10.0.26220.
+-- aria: platform = Windows
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+CMake Error at build/deps/aria/modules/adapters/qt6/CMakeLists.txt:21 (message):
+  Qt6 resolved to a MinGW/MSYS2 kit, incompatible with the MSVC toolchain:
+
+    Qt6_DIR = D:/worksoft/msys64/ucrt64/lib/cmake/Qt6
+
+  Reconfigure with the MSVC kit, e.g.:
+
+    cmake -DQt6_DIR=D:/worksoft/Qt/6.11.1/msvc2022_64/lib/cmake/Qt6 ...
+
+
+-- Configuring incomplete, errors occurred!

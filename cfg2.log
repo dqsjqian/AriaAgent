@@ -1,0 +1,31 @@
+-- aria: platform = Windows
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+-- 
+-- aria v3.0.0 configuration:
+--   Platform        : Windows
+--   Build type      : Release
+--   C++ standard    : 23
+--   Compiler        : GNU 15.2.0
+--   Tests           : OFF
+--   Benchmark       : OFF
+--   Shared libs     : ON
+--   Qt6 adapter     : ON
+--   HTTP adapter    : OFF
+--   JNI adapter     : OFF
+--   macOS AppKit    : OFF
+--   iOS UIKit       : OFF
+--   ASan/UBSan/TSan : OFF/OFF/OFF
+-- 
+-- continuo: I/O backend = iocp (Windows)
+-- Could NOT find WrapVulkanHeaders (missing: Vulkan_INCLUDE_DIR) 
+CMake Error at C:/Program Files/CMake/share/cmake-4.3/Modules/FindPackageHandleStandardArgs.cmake:290 (message):
+  Could NOT find OpenSSL, try to set the path to OpenSSL root folder in the
+  system variable OPENSSL_ROOT_DIR (missing: OPENSSL_CRYPTO_LIBRARY
+  OPENSSL_INCLUDE_DIR)
+Call Stack (most recent call first):
+  C:/Program Files/CMake/share/cmake-4.3/Modules/FindPackageHandleStandardArgs.cmake:654 (_FPHSA_FAILURE_MESSAGE)
+  C:/Program Files/CMake/share/cmake-4.3/Modules/FindOpenSSL.cmake:752 (find_package_handle_standard_args)
+  modules/app/platforms/qt/CMakeLists.txt:13 (find_package)
+
+
+-- Configuring incomplete, errors occurred!
