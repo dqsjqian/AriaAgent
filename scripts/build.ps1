@@ -61,10 +61,10 @@ foreach ($tool in @("cmake", "git")) {
     }
 }
 
-$AriaCMake = Join-Path $RepoRoot "third_party\aria\CMakeLists.txt"
+$AriaCMake = Join-Path $RepoRoot "build\deps\aria\CMakeLists.txt"
 if (-not (Test-Path $AriaCMake)) {
-    Write-Host "[build] Initializing the Aria submodule..."
-    & git -C $RepoRoot submodule update --init third_party/aria
+    Write-Host "[build] Fetching pinned Aria (no git submodule)..."
+    & python (Join-Path $RepoRoot "tools\ci\fetch_aria.py")
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

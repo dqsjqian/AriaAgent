@@ -88,7 +88,7 @@ AriaAgent/
 │       ├── viewmodel/       #   AppText (UI string service)
 │       └── platforms/qt/    #   ★ Shell: main.cpp (QtDispatcher) /
 │                            #     main_window / markdown_render
-├── third_party/aria         # vendored framework (submodule)
+├── build/deps/aria          # pinned Aria fetch (tools/ci/fetch_aria.py)
 ├── core/CMakeLists.txt      # ariaagent_core
 └── modules/app/platforms/qt/CMakeLists.txt  # aria_agent executable
 ```
@@ -127,12 +127,10 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 ### Prerequisites
 - **Windows**: MSYS2 UCRT64 (GCC 14+), Qt6, OpenSSL, CMake ≥ 3.20
 - **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.20
-- Initialize the Aria submodule first (do **not** use `--recursive` — the
-  vendored openssl submodule carries 10 test-only submodules that take forever
-  to clone):
+- Aria is no longer a git submodule; fetch the pinned version once before the first build:
 
 ```bash
-git submodule update --init
+python tools/ci/fetch_aria.py
 ```
 
 ### Build (macOS)

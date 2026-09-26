@@ -41,9 +41,9 @@ for tool in cmake git; do
   fi
 done
 
-if [[ ! -f "$ROOT/third_party/aria/CMakeLists.txt" ]]; then
-  echo "[build] Initializing the Aria submodule..."
-  git -C "$ROOT" submodule update --init third_party/aria
+if [[ ! -f "$ROOT/build/deps/aria/CMakeLists.txt" ]]; then
+  echo "[build] Fetching pinned Aria (no git submodule)..."
+  python3 "$ROOT/tools/ci/fetch_aria.py"
 fi
 
 QT_PREFIX="${QT_DIR:-}"
