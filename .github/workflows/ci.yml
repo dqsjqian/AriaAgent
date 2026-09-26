@@ -59,6 +59,7 @@ jobs:
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-qt6-base
             mingw-w64-ucrt-x86_64-openssl
+            git
       - name: Fetch pinned Aria
         run: python tools/ci/fetch_aria.py
       - name: Configure and build desktop application
