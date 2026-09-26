@@ -7,31 +7,31 @@
 #  provides its own views + platform services. Nothing in this directory may
 #  include Qt headers or link Qt targets.
 #
-#  Transport: Continuo (hash-pinned release archive) — the same coroutine-
+#  Transport: Mira (hash-pinned release archive) — the same coroutine-
 #  native C++23 networking library behind Aria's HTTP adapter. The LLM
 #  client resolves, connects, handshakes TLS (always verified) and streams
-#  response bodies through Continuo; cpp-httplib is gone.
+#  response bodies through Mira; cpp-httplib is gone.
 # ============================================================================
 
-# Third-party dependencies, hash-pinned (the Continuo way — no vendored
+# Third-party dependencies, hash-pinned (the Mira way — no vendored
 # sources, no submodules). Aria itself stays a git submodule by design:
 # sibling project, four-library source linkage. Aria is added before this
 # directory and already provides nlohmann_json::nlohmann_json from its own
-# pinned fetch; this file only pins Continuo.
+# pinned fetch; this file only pins Mira.
 include(ariaFetchPinned)
 
 aria_fetch_pinned_archive(
-    NAME continuo
-    VERSION 0.1.5
-    URL "https://github.com/dqsjqian/continuo/releases/download/v0.1.5/continuo-0.1.5.tar.gz"
-    SHA256 d29cfd4a632c505f5632fa4f294e44984df131b7ca238690bd22cbd1fd845c62
+    NAME Mira
+    VERSION 0.2.0
+    URL "https://github.com/dqsjqian/Mira/releases/download/v0.2.0/Mira-0.2.0.tar.gz"
+    SHA256 8f536d56d4b5218797da638f068e753838e4917ac3f2fbc6e5534c87c059cf17
 )
-set(CONTINUO_BUILD_TESTS    OFF)
-set(CONTINUO_BUILD_EXAMPLES OFF)
-set(CONTINUO_ENABLE_HTTP2   OFF)
-set(CONTINUO_ENABLE_HTTP3   OFF)
-set(CONTINUO_ENABLE_TLS     ON)   # LLM endpoints are HTTPS; Continuo owns the OpenSSL wiring
-add_subdirectory(${ARIA_PINNED_CONTINUO_SOURCE_DIR} continuo)
+set(MIRA_BUILD_TESTS    OFF)
+set(MIRA_BUILD_EXAMPLES OFF)
+set(MIRA_ENABLE_HTTP2   OFF)
+set(MIRA_ENABLE_HTTP3   OFF)
+set(MIRA_ENABLE_TLS     ON)   # LLM endpoints are HTTPS; Mira owns the OpenSSL wiring
+add_subdirectory(${ARIA_PINNED_MIRA_SOURCE_DIR} Mira)
 
 # ── ariaagent_core: engine + tools + i18n + services ───────────────────────
 file(GLOB CORE_SRC CONFIGURE_DEPENDS
@@ -47,9 +47,9 @@ target_link_libraries(ariaagent_core PUBLIC
     aria::binding      # transitively pulls runtime/async/core/abi
     aria::async
     nlohmann_json::nlohmann_json   # provided by Aria's pinned fetch above
-    continuo::transport
-    continuo::http
-    continuo::tls
+    Mira::transport
+    Mira::http
+    Mira::tls
 )
 if(WIN32)
     target_link_libraries(ariaagent_core PUBLIC ws2_32 crypt32)

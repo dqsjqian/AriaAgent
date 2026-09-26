@@ -37,7 +37,7 @@ source of truth, schema-driven tools, and fail-closed permissions.
 ### 🧠 Agent Core
 - **Provider-agnostic** — abstract `LlmClient` interface + `OpenAiCompatClient`
   implementation; any OpenAI-compatible API plugs in seamlessly
-- **True streaming** — token-level SSE rendering (Continuo's
+- **True streaming** — token-level SSE rendering (Mira's
   chunked body reads), not buffered fake streaming
 - **Agent loop** — coroutine think/tool/observe loop with **bounded parallel**
   tool execution (exclusive barrier + parallel pool, results committed in model

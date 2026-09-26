@@ -1,19 +1,19 @@
-// AriaAgent — functional smoke test for the Continuo-backed LLM client.
+// AriaAgent — functional smoke test for the Mira-backed LLM client.
 //
-// Spins up a real Continuo HTTP server on 127.0.0.1 (port 0), points
+// Spins up a real Mira HTTP server on 127.0.0.1 (port 0), points
 // OpenAiCompatClient at it, and drives one non-streaming completion and one
 // streaming completion through the full stack: URL parsing, request
 // encoding, response reading, and SSE parsing. No network, no TLS (the
-// always-verifying TLS path is covered by Continuo's own test suite).
+// always-verifying TLS path is covered by Mira's own test suite).
 #include "agent/llm_client.hpp"
 #include "agent/model.hpp"
 
-#include <continuo/core/event_loop.hpp>
-#include <continuo/core/task.hpp>
-#include <continuo/core/task_scope.hpp>
-#include <continuo/http/connection.hpp>
-#include <continuo/http/message.hpp>
-#include <continuo/transport/tcp.hpp>
+#include <mira/core/event_loop.hpp>
+#include <mira/core/task.hpp>
+#include <mira/core/task_scope.hpp>
+#include <mira/http/connection.hpp>
+#include <mira/http/message.hpp>
+#include <mira/transport/tcp.hpp>
 
 #include <cstdio>
 #include <cstring>
@@ -25,11 +25,11 @@
 
 namespace {
 
-using continuo::OperationOptions;
-using continuo::Result;
-using continuo::Task;
-using continuo::transport::tcp::Listener;
-using continuo::transport::tcp::Socket;
+using Mira::OperationOptions;
+using Mira::Result;
+using Mira::Task;
+using Mira::transport::tcp::Listener;
+using Mira::transport::tcp::Socket;
 
 std::string_view body_text(std::span<const std::byte> body) {
     return {reinterpret_cast<const char*>(body.data()), body.size()};
@@ -44,14 +44,14 @@ struct MockServer {
 
     void start() {
         thread = std::thread([this] {
-            auto loop = continuo::EventLoop::create();
+            auto loop = Mira::EventLoop::create();
             if (!loop) { port_promise.set_value(0); return; }
             auto listener = Listener::bind(*loop,
-                continuo::transport::Endpoint::loopback(0));
+                Mira::transport::Endpoint::loopback(0));
             if (!listener) { port_promise.set_value(0); return; }
             port_promise.set_value(listener->local_endpoint().port());
 
-            continuo::TaskScope scope;
+            Mira::TaskScope scope;
             // Named lambda on purpose: a coroutine called on a temporary
             // closure would leave the frame's `this` dangling after the
             // full expression ends.
@@ -70,17 +70,17 @@ struct MockServer {
     }
 
     static Task<void> handle(Socket socket) {
-        auto handler = [](const continuo::http::Request& request,
-                          continuo::http::ResponseWriter<Socket>& writer,
+        auto handler = [](const Mira::http::Request& request,
+                          Mira::http::ResponseWriter<Socket>& writer,
                           std::span<const std::byte> body) -> Task<Result<void>> {
             const bool wants_stream =
                 body_text(body).find("\"stream\":true") != std::string_view::npos;
             (void)request;
-            continuo::http::Response response;
+            Mira::http::Response response;
             response.status = 200;
             if (!wants_stream) {
                 const std::string payload =
-                    R"({"choices":[{"message":{"content":"hello from continuo"}}]})";
+                    R"({"choices":[{"message":{"content":"hello from Mira"}}]})";
                 response.headers.append("Content-Type", "application/json");
                 co_return co_await writer.send(response,
                     std::span<const std::byte>(
@@ -101,7 +101,7 @@ struct MockServer {
             }
             co_return co_await writer.finish();
         };
-        co_await continuo::http::serve_connection(socket, handler);
+        co_await Mira::http::serve_connection(socket, handler);
     }
 
     [[nodiscard]] std::uint16_t wait_port() {
@@ -144,7 +144,7 @@ int main() {
     // 1. Non-streaming completion.
     try {
         const std::string content = client.complete(messages);
-        check(content == "hello from continuo",
+        check(content == "hello from Mira",
               "complete() returns the mock assistant content");
     } catch (const std::exception& e) {
         std::printf("[FAIL] complete() threw: %s\n", e.what());

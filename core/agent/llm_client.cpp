@@ -4,22 +4,22 @@
 // Moonshot/Kimi, Qwen and others. The only DeepSeek-specific bit is the
 // default base_url; everything else is the standard protocol.
 //
-// Transport: Continuo (github.com/dqsjqian/continuo) — the same
+// Transport: Mira (github.com/dqsjqian/Mira) — the same
 // coroutine-native C++23 networking library that powers Aria's HTTP
 // adapter. Calls stay synchronous (they were with cpp-httplib too);
 // internally each exchange drives an EventLoop to completion, resolves
-// the host through Continuo's bounded system resolver, and streams the
+// the host through Mira's bounded system resolver, and streams the
 // response body chunk by chunk. TLS always verifies the server
-// certificate chain and hostname: Continuo ships no insecure bypass.
+// certificate chain and hostname: Mira ships no insecure bypass.
 #include "agent/llm_client.hpp"
 
-#include <continuo/core/event_loop.hpp>
-#include <continuo/core/task.hpp>
-#include <continuo/http/client.hpp>
-#include <continuo/transport/resolver.hpp>
-#include <continuo/transport/tcp.hpp>
-#include <continuo/tls/context.hpp>
-#include <continuo/tls/stream.hpp>
+#include <mira/core/event_loop.hpp>
+#include <mira/core/task.hpp>
+#include <mira/http/client.hpp>
+#include <mira/transport/resolver.hpp>
+#include <mira/transport/tcp.hpp>
+#include <mira/tls/context.hpp>
+#include <mira/tls/stream.hpp>
 
 #include <algorithm>
 #include <cctype>
@@ -151,7 +151,7 @@ std::string http_error_detail(const std::string& body) {
     return detail;
 }
 
-// ── Continuo exchange ───────────────────────────────────────────────────────
+// ── Mira exchange ───────────────────────────────────────────────────────
 //
 // One blocking call drives one complete HTTP exchange to completion on a
 // private EventLoop: bounded system resolution, TCP connect, an optional
@@ -166,23 +166,23 @@ struct ExchangeOutcome {
 
 using ChunkSink = std::function<void(std::string_view)>;
 
-continuo::Task<ExchangeOutcome>
-exchange_task(continuo::EventLoop& loop,
-              continuo::transport::Resolver& resolver,
+Mira::Task<ExchangeOutcome>
+exchange_task(Mira::EventLoop& loop,
+              Mira::transport::Resolver& resolver,
               const Endpoint& ep,
               const std::string& host_header,
               const std::string& request_body,
               const std::string& auth_header,
               int timeout_sec,
               const ChunkSink& on_chunk) {
-    using namespace continuo;
+    using namespace Mira;
     ExchangeOutcome out;
 
     const auto timeout = std::chrono::seconds(timeout_sec > 0 ? timeout_sec : 120);
-    const OperationOptions io{.stop = {}, .deadline = continuo::EventLoop::Clock::now() + timeout};
+    const OperationOptions io{.stop = {}, .deadline = Mira::EventLoop::Clock::now() + timeout};
 
     auto resolved = co_await resolver.resolve(
-        loop, continuo::transport::ResolveQuery{ep.host, std::to_string(ep.port)}, io);
+        loop, Mira::transport::ResolveQuery{ep.host, std::to_string(ep.port)}, io);
     if (!resolved || resolved->empty()) {
         out.error = "DNS resolution failed for " + ep.host;
         co_return out;
@@ -206,10 +206,10 @@ exchange_task(continuo::EventLoop& loop,
         co_return out;
     }
 
-    continuo::http::Request request;
-    request.method = continuo::http::Method::post;
+    Mira::http::Request request;
+    request.method = Mira::http::Method::post;
     request.target = ep.path;
-    request.version = continuo::http::Version::http_1_1;
+    request.version = Mira::http::Version::http_1_1;
     request.headers.append("Host", host_header);
     request.headers.append("Authorization", auth_header);
     request.headers.append("Content-Type", "application/json");
@@ -222,12 +222,12 @@ exchange_task(continuo::EventLoop& loop,
     // The two stream flavors differ only in the stream type threaded through
     // ClientConnection; the exchange logic is identical.
     if (ep.is_https) {
-        auto context = continuo::tls::Context::client();
+        auto context = Mira::tls::Context::client();
         if (!context) {
             out.error = "TLS context creation failed: " + context.error().message();
             co_return out;
         }
-        auto tls_stream = continuo::tls::Stream<continuo::transport::tcp::Socket>::create(
+        auto tls_stream = Mira::tls::Stream<Mira::transport::tcp::Socket>::create(
             *socket, *context, ep.host);
         if (!tls_stream) {
             out.error = "TLS stream creation failed: " + tls_stream.error().message();
@@ -239,7 +239,7 @@ exchange_task(continuo::EventLoop& loop,
             co_return out;
         }
 
-        continuo::http::ClientConnection<continuo::tls::Stream<continuo::transport::tcp::Socket>>
+        Mira::http::ClientConnection<Mira::tls::Stream<Mira::transport::tcp::Socket>>
             client(*tls_stream, {.request_timeout = timeout});
         auto started = co_await client.start(request, body_bytes, io);
         if (!started) {
@@ -262,7 +262,7 @@ exchange_task(continuo::EventLoop& loop,
         }
         (void)co_await tls_stream->shutdown(io);
     } else {
-        continuo::http::ClientConnection<continuo::transport::tcp::Socket>
+        Mira::http::ClientConnection<Mira::transport::tcp::Socket>
             client(*socket, {.request_timeout = timeout});
         auto started = co_await client.start(request, body_bytes, io);
         if (!started) {
@@ -293,7 +293,7 @@ ExchangeOutcome run_exchange(const Endpoint& ep,
                              const std::string& auth_header,
                              int timeout_sec,
                              const ChunkSink& on_chunk) {
-    using namespace continuo;
+    using namespace Mira;
     auto loop = EventLoop::create();
     if (!loop) throw std::runtime_error("EventLoop creation failed");
     auto resolver = transport::Resolver::create();
@@ -321,7 +321,7 @@ std::string OpenAiCompatClient::complete(const MessageList& messages,
                                          const json& tools) {
     const Endpoint ep = parse_endpoint(cfg_.base_url);
     if (!cfg_.verify_ssl) {
-        std::cerr << "[llm] verify_ssl=false is ignored: the Continuo transport "
+        std::cerr << "[llm] verify_ssl=false is ignored: the Mira transport "
                      "always verifies TLS certificates\n";
     }
 
@@ -357,7 +357,7 @@ void OpenAiCompatClient::complete_stream(
     const std::function<void(const StreamEvent&)>& on_event) {
     const Endpoint ep = parse_endpoint(cfg_.base_url);
     if (!cfg_.verify_ssl) {
-        std::cerr << "[llm] verify_ssl=false is ignored: the Continuo transport "
+        std::cerr << "[llm] verify_ssl=false is ignored: the Mira transport "
                      "always verifies TLS certificates\n";
     }
 
@@ -444,7 +444,7 @@ void OpenAiCompatClient::complete_stream(
         }
     };
 
-    // True streaming: Continuo hands raw body chunks to this sink as they
+    // True streaming: Mira hands raw body chunks to this sink as they
     // arrive from the socket.
     ChunkSink receiver = [&](std::string_view data) {
         const auto take = std::min<std::size_t>(data.size(),
