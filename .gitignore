@@ -1,6 +1,11 @@
 # Build
 build/
 
+# Generated diagnostic logs
+*.log
+*.logg
+*.err
+
 # Qt/CMake clutter
 CMakeCache.txt
 CMakeFiles/
