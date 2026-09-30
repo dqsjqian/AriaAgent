@@ -5,7 +5,7 @@
 
 ## P0 — 基础架构(先做,后续都依赖)
 
-- [x] **P0-1 项目骨架**: CMake + Aria submodule + Qt6 + OpenAI 兼容 LLM 客户端 + 真流式 SSE
+- [x] **P0-1 项目骨架**: CMake + Aria 固定 SHA 依赖 + Qt6 + OpenAI 兼容 LLM 客户端 + 真流式 SSE
 - [x] **P0-2 DeepSeek 风格 UI**: 侧边栏 + 气泡聊天 + 输入栏 + 设置对话框
 - [x] **P0-3 DLL 部署脚本**: windeployqt + 递归依赖拷贝 (scripts/deploy-dlls.ps1)
 - [x] **P0-4 会话持久化 + 多会话管理** (session + ui-sidebar 移植)

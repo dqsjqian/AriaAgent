@@ -55,18 +55,15 @@ if (-not (Test-Path (Join-Path $QtPrefix "lib\cmake\Qt6\Qt6Config.cmake"))) {
     Write-Error "Qt6 was not found. Install the MSYS2 Qt6 package or set QT_DIR."
 }
 
-foreach ($tool in @("cmake", "git")) {
+foreach ($tool in @("cmake", "git", "python")) {
     if (-not (Get-Command $tool -ErrorAction SilentlyContinue)) {
         Write-Error "$tool is not installed or not on PATH."
     }
 }
 
-$AriaCMake = Join-Path $RepoRoot "build\deps\aria\CMakeLists.txt"
-if (-not (Test-Path $AriaCMake)) {
-    Write-Host "[build] Fetching pinned Aria (no git submodule)..."
-    & python (Join-Path $RepoRoot "tools\ci\fetch_aria.py")
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-}
+Write-Host "[build] Verifying pinned Aria (set ARIA_SOURCE for a local repository)..."
+& python (Join-Path $RepoRoot "tools\ci\fetch_aria.py")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $ConfigureArgs = @(
     "-S", $RepoRoot,

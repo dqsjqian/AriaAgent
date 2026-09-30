@@ -30,8 +30,7 @@ target_include_directories(aria_agent PRIVATE
 )
 
 target_link_libraries(aria_agent PRIVATE
-    ariaagent_modules      # all feature modules + manifest
-    ariaagent_core
+    ariaagent_modules      # all feature modules + manifest; transitively links core
     aria::qt6              # transitively pulls binding/runtime/async/core/abi
     Qt6::Widgets
     OpenSSL::SSL

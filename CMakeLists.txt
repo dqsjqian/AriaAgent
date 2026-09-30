@@ -1,5 +1,5 @@
 # ============================================================================
-#  AriaAgent — provider-agnostic C++20 Agent tooling framework GUI
+#  AriaAgent — provider-agnostic C++23 Agent tooling framework GUI
 #
 #  Architecture (mirrors AiTools Workbench):
 #    core/           pure C++ — zero Qt. Engine + ViewModel, platform-agnostic.
@@ -31,9 +31,9 @@ if(NOT ARIA_TARGET_QT)
 endif()
 
 # ── Aria (pinned fetch; no git submodule) ───────────────────────────────────
-set(ARIA_DIR ${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria CACHE PATH
+set(ARIA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria" CACHE PATH
     "Pinned Aria source tree, created by tools/ci/fetch_aria.py")
-if(NOT EXISTS ${ARIA_DIR}/CMakeLists.txt)
+if(NOT EXISTS "${ARIA_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "Aria not found at ${ARIA_DIR}.\n"
         "Run once before configuring:\n"
@@ -47,7 +47,7 @@ set(ARIA_BUILD_BENCHMARK OFF CACHE BOOL "" FORCE)
 if(ARIA_TARGET_QT)
     set(ARIA_BUILD_QT6 ON CACHE BOOL "" FORCE)
 endif()
-add_subdirectory(${ARIA_DIR} aria)
+add_subdirectory("${ARIA_DIR}" aria)
 
 # ── Pure-C++ core (agent engine + services + module API) ─────────────────────
 add_subdirectory(core)

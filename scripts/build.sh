@@ -34,17 +34,15 @@ case "$MODE" in
     ;;
 esac
 
-for tool in cmake git; do
+for tool in cmake git python3; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "[build] Error: $tool is not installed or not on PATH" >&2
     exit 1
   fi
 done
 
-if [[ ! -f "$ROOT/build/deps/aria/CMakeLists.txt" ]]; then
-  echo "[build] Fetching pinned Aria (no git submodule)..."
-  python3 "$ROOT/tools/ci/fetch_aria.py"
-fi
+echo "[build] Verifying pinned Aria (set ARIA_SOURCE for a local repository)..."
+python3 "$ROOT/tools/ci/fetch_aria.py"
 
 QT_PREFIX="${QT_DIR:-}"
 if [[ -z "$QT_PREFIX" ]] && command -v brew >/dev/null 2>&1; then

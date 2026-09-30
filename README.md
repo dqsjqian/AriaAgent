@@ -103,11 +103,22 @@ AriaAgent/
 ### 前置
 - **Windows**:MSYS2 UCRT64(GCC 14+)、Qt6、OpenSSL、CMake ≥ 3.20
 - **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.20
-- Aria 框架不再使用 git submodule，首次构建前先拉取钉定版本:
+- **通用**:支持 C++23 的编译器、Git、Python 3.9+。
+- Aria 框架使用固定提交；手动调用 CMake 前先校验或拉取依赖:
 
 ```bash
 python tools/ci/fetch_aria.py
 ```
+
+尚未推送的 Aria 提交可从本地仓库获取，仍然必须匹配脚本中的固定 SHA：
+
+```bash
+python tools/ci/fetch_aria.py --source /path/to/Aria
+# 一键构建也支持相同的来源设置
+ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
+```
+
+Windows 对应设置为 `$env:ARIA_SOURCE = "C:\path\to\Aria"`。`--source` 优先于 `ARIA_SOURCE`，未设置时使用 GitHub。每次运行会检查实际 Git HEAD；本地修改会阻止更新。更新成功后，旧依赖保留在 `build/deps/aria-backup-*`，拉取失败保留当前依赖。
 
 ### 一键构建(macOS / Linux)
 
@@ -118,7 +129,7 @@ python tools/ci/fetch_aria.py
 ./scripts/build.sh clean       # 清理全部构建产物
 ```
 
-脚本会自动初始化 Aria 子模块、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt ./scripts/build.sh` 指定。
+脚本每次构建都会校验 Aria 固定提交、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt ./scripts/build.sh` 指定。
 
 ### 一键构建(Windows)
 
@@ -130,6 +141,14 @@ python tools/ci/fetch_aria.py
 ```
 
 脚本会自动探测 MSYS2 UCRT64、Qt6 和 Ninja；非标准安装位置可通过 `$env:MSYS2_ROOT`、`$env:QT_DIR` 指定。
+
+### 验证
+
+```bash
+ctest --test-dir build/flavors/release --output-on-failure
+```
+
+测试包括依赖拉取安全回归，以及使用本地 HTTP 服务验证普通响应和 SSE 流式响应的 `llm_client_smoke`；无需配置 LLM API 密钥。
 
 ### 配置 & 运行
 

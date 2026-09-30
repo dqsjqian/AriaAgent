@@ -14,11 +14,24 @@
 # ============================================================================
 
 # Third-party dependencies, hash-pinned (the Mira way — no vendored
-# sources, no submodules). Aria itself stays a git submodule by design:
-# sibling project, four-library source linkage. Aria is added before this
-# directory and already provides nlohmann_json::nlohmann_json from its own
-# pinned fetch; this file only pins Mira.
+# sources, no submodules). Aria is fetched at an exact commit and added before
+# this directory. Use its dependency verifier for our JSON and Mira pins.
 include(ariaFetchPinned)
+
+# Aria's core no longer downloads JSON; only its optional HTTP adapter needs it.
+# AriaAgent uses JSON directly for model messages, tools, settings and storage.
+if(NOT TARGET nlohmann_json::nlohmann_json)
+    aria_fetch_pinned_archive(
+        NAME json
+        VERSION 3.12.0
+        URL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz"
+        SHA256 42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
+    )
+    add_library(ariaagent_json INTERFACE)
+    target_include_directories(ariaagent_json SYSTEM INTERFACE
+        "${ARIA_PINNED_JSON_SOURCE_DIR}/include")
+    add_library(nlohmann_json::nlohmann_json ALIAS ariaagent_json)
+endif()
 
 aria_fetch_pinned_archive(
     NAME Mira
@@ -46,7 +59,7 @@ target_include_directories(ariaagent_core PUBLIC
 target_link_libraries(ariaagent_core PUBLIC
     aria::binding      # transitively pulls runtime/async/core/abi
     aria::async
-    nlohmann_json::nlohmann_json   # provided by Aria's pinned fetch above
+    nlohmann_json::nlohmann_json
     Mira::transport
     Mira::http
     Mira::tls

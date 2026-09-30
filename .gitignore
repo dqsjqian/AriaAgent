@@ -12,3 +12,13 @@ CMakeFiles/
 .idea/
 *.swp
 .codebuddy/
+
+# Local Python environments, caches and private settings
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/
+.env
+.skills_data/
+.workbuddy/

@@ -127,11 +127,22 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 ### Prerequisites
 - **Windows**: MSYS2 UCRT64 (GCC 14+), Qt6, OpenSSL, CMake ≥ 3.20
 - **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.20
-- Aria is no longer a git submodule; fetch the pinned version once before the first build:
+- **All platforms**: a C++23 compiler, Git, and Python 3.9+.
+- Aria uses a pinned commit. Verify or fetch it before configuring CMake manually:
 
 ```bash
 python tools/ci/fetch_aria.py
 ```
+
+For an unpublished Aria commit, use a local repository containing the exact pinned SHA:
+
+```bash
+python tools/ci/fetch_aria.py --source /path/to/Aria
+# The build runners accept the same source through the environment
+ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
+```
+
+On Windows, set `$env:ARIA_SOURCE = "C:\path\to\Aria"`. `--source` overrides `ARIA_SOURCE`; the default source is GitHub. Both build runners verify the actual Git HEAD on every build. Local edits block replacement, successful updates preserve the old checkout under `build/deps/aria-backup-*`, and failed fetches leave the current checkout intact.
 
 ### Build (macOS)
 
@@ -155,6 +166,14 @@ cmake --build build/flavors/debug -j 8
 # Deploy runtime DLLs (windeployqt + recursive closure copy; double-click ready)
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-dlls.ps1
 ```
+
+### Verify
+
+```bash
+ctest --test-dir build/flavors/debug --output-on-failure
+```
+
+The tests cover dependency-fetch safety and `llm_client_smoke`, which exercises ordinary completions and SSE streaming against a local HTTP server. No LLM API key is required.
 
 ### Configure & run
 
