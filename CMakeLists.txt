@@ -12,7 +12,7 @@
 #    (future: -DARIA_TARGET_IOS=ON / _ANDROID=ON)
 # ============================================================================
 cmake_minimum_required(VERSION 3.20)
-project(AriaAgent LANGUAGES CXX)
+project(AriaAgent VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

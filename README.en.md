@@ -2,6 +2,8 @@
 
 # ✦ AriaAgent
 
+Current version **0.1.0** · Aria **3.0.1**
+
 **Industrial-grade C++23 Agent Tooling Framework GUI** · Built on [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
 Provider-agnostic · True token-level SSE streaming · Tool-call chain visualization · Permission approval · MIT License

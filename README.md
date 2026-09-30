@@ -2,6 +2,8 @@
 
 # ✦ AriaAgent
 
+当前版本 **0.1.0** · Aria **3.0.1**
+
 **工业级 C++23 Agent 工具框架 GUI** · 基于 [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
 Provider 无关 · 真流式 SSE · 工具调用链可视化 · 权限审批 · MIT License
