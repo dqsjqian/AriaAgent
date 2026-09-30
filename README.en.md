@@ -4,7 +4,7 @@
 
 [Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
 
-Current version **0.1.1** · Aria **3.1.0**
+Current version **0.1.1** · Aria **3.1.1**
 
 **Industrial-grade C++23 Agent Tooling Framework GUI** · Built on [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
@@ -139,7 +139,7 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 python tools/ci/fetch_aria.py
 ```
 
-The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python tools/ci/fetch_aria.py --version 3.1.0` overrides `ARIA_DEP_ARIA_VERSION`. Run `python tools/ci/fetch_aria.py --update` to upgrade Aria deliberately.
+The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python tools/ci/fetch_aria.py --version 3.1.1` overrides `ARIA_DEP_ARIA_VERSION`. Run `python tools/ci/fetch_aria.py --update` to upgrade Aria deliberately.
 
 Override C++ libraries with options such as `-DARIA_DEP_JSON_VERSION=3.12.0`, `-DARIA_DEP_MIRA_VERSION=1.0.0`, and `-DARIA_DEP_OPENSSL_VERSION=4.0.3`. CMake records temporary overrides in a build-directory resolution cache without changing the source `dependencies.json`. To update the shared library lock, run `python tools/ci/update_dependencies.py`, review the changes, and commit this dependency file. Explicit source overrides and dependency targets supplied by a parent project retain priority.
 

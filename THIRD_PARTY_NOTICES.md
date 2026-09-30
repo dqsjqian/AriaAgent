@@ -10,14 +10,14 @@ and [English update guide](docs/dependency-updates.en.md).
 
 | Component | Current resolution | License | Use |
 |---|---|---|---|
-| [Aria](https://github.com/dqsjqian/Aria) | 3.1.0 | MIT | Framework, bindings and Qt adapter. |
+| [Aria](https://github.com/dqsjqian/Aria) | 3.1.1 | MIT | Framework, bindings and Qt adapter. |
 | [Mira](https://github.com/dqsjqian/Mira) | 1.0.0 | MIT | HTTP/1.1 and TLS client transport; HTTP/2 and HTTP/3 are disabled. |
 | [nlohmann/json](https://github.com/nlohmann/json) | 3.12.0 | MIT | Messages, tools, settings and storage. |
 | [OpenSSL](https://github.com/openssl/openssl) | 4.0.3 | Apache-2.0 | TLS through Mira; the bundled source build is static. |
 | [Qt Core, Gui and Widgets](https://doc.qt.io/qt-6/licensing.html) | Selected installed Qt 6 SDK | LGPL-3.0-only, with GPL/commercial alternatives as specified upstream | Desktop UI and platform plugins. |
 | [doctest](https://github.com/doctest/doctest) | 2.5.3 | MIT; embedded portions under Boost-1.0 | Available in the shared dependency file for Aria tests; embedded Aria tests are disabled by default. |
 
-Aria's selected [LICENSE](https://github.com/dqsjqian/Aria/blob/7f957a8764e69d02e8487a2d128ace9f0605ccdd/LICENSE)
+Aria's selected [LICENSE](https://github.com/dqsjqian/Aria/blob/a56ad396433f5278fba81d920ddd86d1fe5aa923/LICENSE)
 and third-party notices apply to its code. Mira's
 [LICENSE](https://github.com/dqsjqian/Mira/blob/9386d89d2a259303a0a2c3b1539a5cb0e3fc0be5/LICENSE)
 credits Copyright (c) 2026 dqsjqian. nlohmann/json's
