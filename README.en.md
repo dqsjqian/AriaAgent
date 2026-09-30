@@ -4,7 +4,7 @@
 
 [Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
 
-Current version **0.1.0** · Aria **3.0.1**
+Current version **0.1.1** · Aria **3.1.0**
 
 **Industrial-grade C++23 Agent Tooling Framework GUI** · Built on [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
@@ -129,9 +129,9 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 ## 🚀 Quick start
 
 ### Prerequisites
-- **Windows UCRT64**: MSYS2 UCRT64 (GCC 14+), Qt6, CMake ≥ 3.20, and the MSYS `make` and `perl` packages (`pacman -S make perl`) for the source OpenSSL build.
+- **Windows UCRT64**: MSYS2 UCRT64 (GCC 14+), Qt6, CMake ≥ 3.21, and the MSYS `make` and `perl` packages (`pacman -S make perl`) for the source OpenSSL build.
 - **Windows MSVC**: run CMake in an x64 Developer PowerShell with `cl`, `nmake`, Perl, and NASM on `PATH`. Selecting a Visual Studio generator does not initialize the developer environment for the external OpenSSL build.
-- **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.20
+- **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.21
 - **All platforms**: a C++23 compiler, Git, and Python 3.10+.
 - Resolve and verify Aria before configuring CMake manually:
 
@@ -139,9 +139,9 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 python tools/ci/fetch_aria.py
 ```
 
-The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python tools/ci/fetch_aria.py --version 3.0.1` overrides `ARIA_DEP_ARIA_VERSION`. Run `python tools/ci/fetch_aria.py --update` to upgrade Aria deliberately.
+The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python tools/ci/fetch_aria.py --version 3.1.0` overrides `ARIA_DEP_ARIA_VERSION`. Run `python tools/ci/fetch_aria.py --update` to upgrade Aria deliberately.
 
-Override C++ libraries with options such as `-DARIA_DEP_JSON_VERSION=3.12.0`, `-DARIA_DEP_MIRA_VERSION=0.4.0`, and `-DARIA_DEP_OPENSSL_VERSION=4.0.3`. CMake records temporary overrides in a build-directory resolution cache without changing the source `dependencies.json`. To update the shared library lock, run `python tools/ci/update_dependencies.py`, review the changes, and commit this dependency file. Explicit source overrides and dependency targets supplied by a parent project retain priority.
+Override C++ libraries with options such as `-DARIA_DEP_JSON_VERSION=3.12.0`, `-DARIA_DEP_MIRA_VERSION=1.0.0`, and `-DARIA_DEP_OPENSSL_VERSION=4.0.3`. CMake records temporary overrides in a build-directory resolution cache without changing the source `dependencies.json`. To update the shared library lock, run `python tools/ci/update_dependencies.py`, review the changes, and commit this dependency file. Explicit source overrides and dependency targets supplied by a parent project retain priority.
 
 Qt uses installed SDKs and never downloads or installs them automatically. The default prefers the latest discoverable version; `-DARIA_DEP_QT_VERSION=6.8.3` requires that exact version. Use `Qt6_DIR` / `CMAKE_PREFIX_PATH` to select an SDK location.
 
@@ -248,3 +248,5 @@ The architecture draws heavily on the core ideas of the official
 ## 📄 License
 
 [MIT](LICENSE) © 2026 dqsjqian
+
+Own code is MIT-licensed; third-party components retain their licenses. See [Third-Party Notices](THIRD_PARTY_NOTICES.md) for distribution requirements.

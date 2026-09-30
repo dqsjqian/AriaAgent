@@ -3,8 +3,8 @@
 // Spins up a real Mira HTTP server on 127.0.0.1 (port 0), points
 // OpenAiCompatClient at it, and drives one non-streaming completion and one
 // streaming completion through the full stack: URL parsing, request
-// encoding, response reading, and SSE parsing. No network, no TLS (the
-// always-verifying TLS path is covered by Mira's own test suite).
+// encoding, response reading, and SSE parsing. HTTPS against this plaintext
+// peer must fail without fallback; trusted TLS exchanges are covered by Mira.
 #include "agent/llm_client.hpp"
 #include "agent/model.hpp"
 
@@ -169,6 +169,18 @@ int main() {
     } catch (const std::exception& e) {
         std::printf("[FAIL] complete_stream() threw: %s\n", e.what());
         ++failures;
+    }
+
+    // 3. Exercise Mira 1.x's loop-bound TLS stream and reject a non-TLS peer.
+    cfg.base_url = "https://127.0.0.1:" + std::to_string(port) + "/v1";
+    cfg.timeout_sec = 2;
+    try {
+        agent::OpenAiCompatClient secure_client{cfg};
+        (void)secure_client.complete(messages);
+        check(false, "HTTPS must not fall back to the plaintext endpoint");
+    } catch (const std::exception& error) {
+        check(std::string_view(error.what()).find("TLS handshake failed") != std::string_view::npos,
+              "HTTPS rejects the plaintext peer through the TLS handshake");
     }
 
     server.shutdown();

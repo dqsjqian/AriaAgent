@@ -228,7 +228,7 @@ exchange_task(Mira::EventLoop& loop,
             co_return out;
         }
         auto tls_stream = Mira::tls::Stream<Mira::transport::tcp::Socket>::create(
-            *socket, *context, ep.host);
+            loop, *socket, *context, ep.host);
         if (!tls_stream) {
             out.error = "TLS stream creation failed: " + tls_stream.error().message();
             co_return out;
