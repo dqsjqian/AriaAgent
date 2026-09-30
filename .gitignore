@@ -1,5 +1,8 @@
 # Build
 build/
+build-*/
+cmake-build-*/
+out/
 
 # Generated diagnostic logs
 *.log
@@ -9,6 +12,19 @@ build/
 # Qt/CMake clutter
 CMakeCache.txt
 CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Testing/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
 *.user
 *.autosave
 

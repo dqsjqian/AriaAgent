@@ -33,7 +33,6 @@ function Find-Msys2Prefix {
     foreach ($candidate in @(
         "C:\msys64\ucrt64",
         "D:\msys64\ucrt64",
-        "C:\DevTools\msys64\ucrt64",
         (Join-Path $env:USERPROFILE "msys64\ucrt64")
     )) {
         if (Test-Path (Join-Path $candidate "bin\g++.exe")) { return $candidate }

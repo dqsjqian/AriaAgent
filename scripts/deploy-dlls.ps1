@@ -10,9 +10,21 @@
 
 param(
     [string]$BuildDir = "build\flavors\debug",
-    [string]$Msys2Bin = "C:\DevTools\msys64\ucrt64\bin"
+    [string]$Msys2Bin = ""
 )
 $ErrorActionPreference = "Stop"
+
+if (-not $Msys2Bin) {
+    if ($env:MSYS2_ROOT) {
+        $Msys2Bin = Join-Path $env:MSYS2_ROOT "ucrt64\bin"
+    } else {
+        $objdump = Get-Command objdump.exe -ErrorAction SilentlyContinue
+        if ($objdump) { $Msys2Bin = Split-Path -Parent $objdump.Source }
+    }
+    if (-not $Msys2Bin) {
+        throw "Set MSYS2_ROOT, pass -Msys2Bin, or put the UCRT64 bin directory on PATH."
+    }
+}
 
 # Accept a repo-root-relative or absolute path.
 if (-not [System.IO.Path]::IsPathRooted($BuildDir)) {
@@ -62,17 +74,18 @@ $ExtraSources = @(
 )
 
 Write-Host "[deploy] copying runtime dependencies..." -ForegroundColor Cyan
-$queue = @($Exe)
+$queue = [System.Collections.Generic.Queue[string]]::new()
+$queue.Enqueue($Exe)
 $processed = @{}
 $copied = 0
 while ($queue.Count -gt 0) {
-    $file = $queue[0]; $queue = $queue[1..($queue.Count - 1)]
+    $file = $queue.Dequeue()
     if ($processed.ContainsKey($file)) { continue }
     $processed[$file] = $true
     foreach ($dll in (Get-Imports $file)) {
         if ($dll -match $SystemDll) { continue }
         $dest = Join-Path $AriaBin $dll
-        if (Test-Path $dest) { $queue += $dest; continue }
+        if (Test-Path $dest) { $queue.Enqueue($dest); continue }
         $candidates = @($Msys2Bin, $AriaBin)
         foreach ($e in $ExtraSources) {
             if ($dll -match $e.Re) { $candidates += $e.Path }
@@ -84,7 +97,7 @@ while ($queue.Count -gt 0) {
                 Copy-Item -Path $src -Destination $dest -Force
                 Write-Host "  + $dll" -ForegroundColor DarkGray
                 $copied++
-                $queue += $dest
+                $queue.Enqueue($dest)
                 break
             }
         }

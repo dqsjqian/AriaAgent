@@ -158,16 +158,13 @@ cmake --build build/flavors/debug -j 8
 ### Build (Windows)
 
 ```powershell
-# MSYS2 toolchain
-export PATH="/d/worksoft/msys64/ucrt64/bin:$PATH"
-
-cmake -S . -B build/flavors/debug -G Ninja -DCMAKE_BUILD_TYPE=Debug `
-      -DCMAKE_PREFIX_PATH="C:/DevTools/msys64/ucrt64"
-cmake --build build/flavors/debug -j 8
-
-# Deploy runtime DLLs (windeployqt + recursive closure copy; double-click ready)
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy-dlls.ps1
+.\scripts\build.ps1             # Release build and deploy runtime DLLs
+.\scripts\build.ps1 debug       # Debug build and deploy runtime DLLs
+.\scripts\build.ps1 run         # Debug build, deploy, and launch
 ```
+
+The runner finds MSYS2 UCRT64, Qt6, and Ninja. Set `$env:MSYS2_ROOT` or
+`$env:QT_DIR` for a nonstandard installation.
 
 ### Verify
 
@@ -192,7 +189,7 @@ Use the built-in settings dialog (⚙ bottom-left) or environment variables:
 $env:ARIA_LLM_API_KEY  = "sk-..."
 $env:ARIA_LLM_BASE_URL = "https://api.deepseek.com"
 $env:ARIA_LLM_MODEL    = "deepseek-chat"
-./build/flavors/debug/aria_agent.exe
+./build/flavors/debug/bin/aria_agent.exe
 ```
 
 > Switch providers: point `BASE_URL` at `https://api.openai.com` + `gpt-4o-mini`,

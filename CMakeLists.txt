@@ -4,7 +4,7 @@
 #  Architecture (mirrors AiTools Workbench):
 #    core/           pure C++ — zero Qt. Engine + ViewModel, platform-agnostic.
 #                    mobile shells (iOS/Android) reuse this verbatim.
-#    platform/qt     Qt6 desktop shell — the ONLY place allowed to see Qt.
+#    modules/*/platforms/qt  Qt6 views for the app and settings modules.
 #    build/deps/aria   pinned Aria fetch (tools/ci/fetch_aria.py)
 #
 #  One core, many shells. Platform switch:

@@ -167,7 +167,7 @@ ctest --test-dir build/flavors/release --output-on-failure
 $env:ARIA_LLM_API_KEY  = "sk-..."
 $env:ARIA_LLM_BASE_URL = "https://api.deepseek.com"
 $env:ARIA_LLM_MODEL    = "deepseek-chat"
-./build/flavors/debug/aria_agent.exe
+./build/flavors/debug/bin/aria_agent.exe
 ```
 
 > 换厂商:把 `BASE_URL` 改成 `https://api.openai.com` + `gpt-4o-mini`,或 `https://api.moonshot.cn` + `kimi-k2-0711-preview`,无需重新编译。
