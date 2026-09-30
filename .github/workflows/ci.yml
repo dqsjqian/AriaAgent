@@ -44,6 +44,12 @@ jobs:
           version: '6.8.3'
           arch: win64_msvc2022_64
           cache: true
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - uses: ilammy/setup-nasm@v1
+      - name: Verify OpenSSL build tools
+        run: Get-Command cl, nmake, perl, nasm -ErrorAction Stop
       - name: Configure and build with Visual Studio 2026
         run: |
           cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIA_TARGET_QT=ON
@@ -72,8 +78,9 @@ jobs:
             mingw-w64-ucrt-x86_64-cmake
             mingw-w64-ucrt-x86_64-ninja
             mingw-w64-ucrt-x86_64-qt6-base
-            mingw-w64-ucrt-x86_64-openssl
             mingw-w64-ucrt-x86_64-python
+            make
+            perl
             git
       - name: Fetch pinned Aria
         run: python tools/ci/fetch_aria.py

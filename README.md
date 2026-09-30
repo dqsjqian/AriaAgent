@@ -105,9 +105,10 @@ AriaAgent/
 ## 🚀 快速开始
 
 ### 前置
-- **Windows**:MSYS2 UCRT64(GCC 14+)、Qt6、Perl、CMake ≥ 3.20
+- **Windows UCRT64**：MSYS2 UCRT64（GCC 14+）、Qt6、CMake ≥ 3.20，以及 MSYS 的 `make`、`perl`（`pacman -S make perl`）；源码 OpenSSL 使用这两项工具。
+- **Windows MSVC**：在 x64 Developer PowerShell 中运行 CMake，确保 `cl`、`nmake`、Perl 和 NASM 在 `PATH` 中；选择 Visual Studio 生成器不会自动为外部 OpenSSL 构建初始化开发环境。
 - **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.20
-- **通用**:支持 C++23 的编译器、Git、Python 3.9+。
+- **通用**:支持 C++23 的编译器、Git、Python 3.10+。
 - 手动调用 CMake 前先解析并校验 Aria 依赖：
 
 ```bash

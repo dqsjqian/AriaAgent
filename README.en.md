@@ -129,9 +129,10 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 ## 🚀 Quick start
 
 ### Prerequisites
-- **Windows**: MSYS2 UCRT64 (GCC 14+), Qt6, Perl, CMake ≥ 3.20
+- **Windows UCRT64**: MSYS2 UCRT64 (GCC 14+), Qt6, CMake ≥ 3.20, and the MSYS `make` and `perl` packages (`pacman -S make perl`) for the source OpenSSL build.
+- **Windows MSVC**: run CMake in an x64 Developer PowerShell with `cl`, `nmake`, Perl, and NASM on `PATH`. Selecting a Visual Studio generator does not initialize the developer environment for the external OpenSSL build.
 - **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.20
-- **All platforms**: a C++23 compiler, Git, and Python 3.9+.
+- **All platforms**: a C++23 compiler, Git, and Python 3.10+.
 - Resolve and verify Aria before configuring CMake manually:
 
 ```bash
