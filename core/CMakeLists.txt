@@ -13,38 +13,36 @@
 #  response bodies through Mira; cpp-httplib is gone.
 # ============================================================================
 
-# Third-party dependencies, hash-pinned (the Mira way — no vendored
-# sources, no submodules). Aria is fetched at an exact commit and added before
-# this directory. Use its dependency verifier for our JSON and Mira pins.
-include(ariaFetchPinned)
+# Dependencies share Aria's resolved versions and lock. An explicit
+# ARIA_DEP_<NAME>_VERSION wins; otherwise the lock keeps builds reproducible.
+include("${ARIA_DIR}/cmake/ariaFetchPinned.cmake")
 
 # Aria's core no longer downloads JSON; only its optional HTTP adapter needs it.
 # AriaAgent uses JSON directly for model messages, tools, settings and storage.
 if(NOT TARGET nlohmann_json::nlohmann_json)
-    aria_fetch_pinned_archive(
-        NAME json
-        VERSION 3.12.0
-        URL "https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz"
-        SHA256 42f6e95cad6ec532fd372391373363b62a14af6d771056dbfc86160e6dfff7aa
-    )
+    aria_fetch_pinned_archive(NAME json)
     add_library(ariaagent_json INTERFACE)
     target_include_directories(ariaagent_json SYSTEM INTERFACE
         "${ARIA_PINNED_JSON_SOURCE_DIR}/include")
     add_library(nlohmann_json::nlohmann_json ALIAS ariaagent_json)
 endif()
 
-aria_fetch_pinned_archive(
-    NAME Mira
-    VERSION 0.4.0
-    URL "https://github.com/dqsjqian/Mira/releases/download/v0.4.0/Mira-0.4.0.tar.gz"
-    SHA256 3290abda456d4897103f160e0905d09c5b29dfc973ec15024b8f76ce705dd856
-)
-set(MIRA_BUILD_TESTS    OFF)
-set(MIRA_BUILD_EXAMPLES OFF)
-set(MIRA_ENABLE_HTTP2   OFF)
-set(MIRA_ENABLE_HTTP3   OFF)
-set(MIRA_ENABLE_TLS     ON)   # LLM endpoints are HTTPS; Mira owns the OpenSSL wiring
-add_subdirectory(${ARIA_PINNED_MIRA_SOURCE_DIR} Mira)
+if(TARGET Mira::transport AND TARGET Mira::http AND TARGET Mira::tls)
+    # A complete transport supplied by the parent is an explicit override.
+elseif(TARGET Mira::transport OR TARGET Mira::http OR TARGET Mira::tls)
+    message(FATAL_ERROR "AriaAgent requires parent Mira targets transport, http, and tls together")
+else()
+    aria_fetch_pinned_archive(NAME Mira)
+    # Use the same locked TLS dependency as Aria's HTTP adapter. Explicit parent
+    # OpenSSL targets are honored by this helper before any source resolution.
+    include("${ARIA_DIR}/cmake/BuildOpenSSL.cmake")
+    set(MIRA_BUILD_TESTS    OFF)
+    set(MIRA_BUILD_EXAMPLES OFF)
+    set(MIRA_ENABLE_HTTP2   OFF)
+    set(MIRA_ENABLE_HTTP3   OFF)
+    set(MIRA_ENABLE_TLS     ON)   # LLM endpoints are HTTPS; Mira owns the OpenSSL wiring
+    add_subdirectory(${ARIA_PINNED_MIRA_SOURCE_DIR} Mira)
+endif()
 
 # ── ariaagent_core: engine + tools + i18n + services ───────────────────────
 file(GLOB CORE_SRC CONFIGURE_DEPENDS

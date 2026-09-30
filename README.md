@@ -2,6 +2,8 @@
 
 # ✦ AriaAgent
 
+[依赖更新完整指南](docs/dependencies.md) — 版本固定、选择性更新、离线、回退与提交步骤。
+
 当前版本 **0.1.0** · Aria **3.0.1**
 
 **工业级 C++23 Agent 工具框架 GUI** · 基于 [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
@@ -103,16 +105,22 @@ AriaAgent/
 ## 🚀 快速开始
 
 ### 前置
-- **Windows**:MSYS2 UCRT64(GCC 14+)、Qt6、OpenSSL、CMake ≥ 3.20
+- **Windows**:MSYS2 UCRT64(GCC 14+)、Qt6、Perl、CMake ≥ 3.20
 - **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.20
 - **通用**:支持 C++23 的编译器、Git、Python 3.9+。
-- Aria 框架使用固定提交；手动调用 CMake 前先校验或拉取依赖:
+- 手动调用 CMake 前先解析并校验 Aria 依赖：
 
 ```bash
 python tools/ci/fetch_aria.py
 ```
 
-尚未推送的 Aria 提交可从本地仓库获取，仍然必须匹配脚本中的固定 SHA：
+根目录唯一的 `dependencies.json` 同时保存版本请求与每项的 `resolved` 结果。没有显式版本、也没有匹配锁时，首次解析最新稳定版并记录版本、提交和 SHA256；已有锁会直接复用，普通构建不会追随新发布。显式版本优先，例如 `python tools/ci/fetch_aria.py --version 3.0.1`（优先于 `ARIA_DEP_ARIA_VERSION`）；主动升级 Aria 使用 `python tools/ci/fetch_aria.py --update`。
+
+C++ 库可用 `-DARIA_DEP_JSON_VERSION=3.12.0`、`-DARIA_DEP_MIRA_VERSION=0.4.0`、`-DARIA_DEP_OPENSSL_VERSION=4.0.3` 等覆盖；CMake 将临时覆盖写入构建目录的解析缓存，不修改源码中的 `dependencies.json`。要更新并保存共享锁，运行 `python tools/ci/update_dependencies.py`，审查变更后提交这一份依赖文件。显式源码覆盖和父工程已提供的依赖目标继续优先。
+
+Qt 使用已安装的 SDK，不自动下载安装。未指定版本时优先选择可发现的最新版本；`-DARIA_DEP_QT_VERSION=6.8.3` 要求精确版本，`Qt6_DIR` / `CMAKE_PREFIX_PATH` 可指定 SDK 所在位置。
+
+锁定的 Aria 提交可从本地仓库获取，仍然必须匹配锁中的完整 SHA：
 
 ```bash
 python tools/ci/fetch_aria.py --source /path/to/Aria
@@ -131,7 +139,7 @@ Windows 对应设置为 `$env:ARIA_SOURCE = "C:\path\to\Aria"`。`--source` 优�
 ./scripts/build.sh clean       # 清理全部构建产物
 ```
 
-脚本每次构建都会校验 Aria 固定提交、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt ./scripts/build.sh` 指定。
+脚本每次构建都会校验 Aria 锁定提交、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt ./scripts/build.sh` 指定。
 
 ### 一键构建(Windows)
 

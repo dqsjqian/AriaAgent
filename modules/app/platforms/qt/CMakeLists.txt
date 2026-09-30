@@ -9,7 +9,8 @@
 
 set(REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+include("${ARIA_DIR}/cmake/ariaDependencies.cmake")
+aria_find_qt6(REQUIRED COMPONENTS Widgets)
 find_package(OpenSSL REQUIRED)
 
 add_executable(aria_agent
