@@ -12,7 +12,7 @@
 #    (future: -DARIA_TARGET_IOS=ON / _ANDROID=ON)
 # ============================================================================
 cmake_minimum_required(VERSION 3.21)
-project(AriaAgent VERSION 0.1.1 LANGUAGES CXX)
+project(AriaAgent VERSION 0.2.0 LANGUAGES CXX)
 
 set(ARIA_DEPENDENCIES_FILE "${CMAKE_CURRENT_SOURCE_DIR}/dependencies.json" CACHE FILEPATH
     "Shared dependency requests and resolved versions")

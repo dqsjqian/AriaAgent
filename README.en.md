@@ -4,7 +4,7 @@
 
 [Complete dependency update guide](docs/dependency-updates.en.md) — Version pins, selective updates, offline use, rollback and commit steps.
 
-Current version **0.1.1** · Aria **3.1.1**
+Current version **0.2.0** · Aria **3.1.1**
 
 **Industrial-grade C++23 Agent Tooling Framework GUI** · Built on [Aria](https://github.com/dqsjqian/Aria) (C++23 MVVM)
 
@@ -164,6 +164,12 @@ when needed. Windows defaults to MSVC (use a developer shell with Perl/NASM for
 OpenSSL); `--toolchain mingw` selects a separate cache. Only the implemented Qt
 desktop shell is accepted; mobile targets fail explicitly. Existing deployment
 and launch scripts remain available.
+
+Use `--arch x86_64` / `--arch arm64` for the actual macOS target architecture,
+or `--generator-platform x64` (or `ARM64`) with Visual Studio. Extra definitions
+use `--cmake-arg=-DNAME[:TYPE]=VALUE` and cannot override the selected configuration,
+source or platform. Compiler, toolchain, architecture and dependency-path cache
+conflicts are rejected before fetching; existing files are preserved.
 
 ### Build (macOS)
 
