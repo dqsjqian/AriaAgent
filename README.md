@@ -131,6 +131,10 @@ ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
 
 Windows 对应设置为 `$env:ARIA_SOURCE = "C:\path\to\Aria"`。`--source` 优先于 `ARIA_SOURCE`，未设置时使用 GitHub。每次运行会检查实际 Git HEAD；本地修改会阻止更新。更新成功后，旧依赖保留在 `build/deps/aria-backup-*`，拉取失败保留当前依赖。
 
+### 统一 Python 入口
+
+`python tools/build.py --test` 串联现有锁定依赖获取、CMake 构建和本机测试；`--dry-run` 只输出计划，`--offline` 禁止依赖联网。支持 `--qt-prefix`、`--aria-root`、`--config`、`--jobs` 和隔离构建目录。Windows 默认 MSVC（外部 OpenSSL 构建仍需 Developer PowerShell、Perl/NASM），MinGW 使用 `--toolchain mingw`。当前只支持 Qt 桌面壳；未实现的 iOS/Android 会明确报错，不生成假的移动端构建。原部署/启动脚本继续保留。
+
 ### 一键构建(macOS / Linux)
 
 ```bash

@@ -155,6 +155,16 @@ ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
 
 On Windows, set `$env:ARIA_SOURCE = "C:\path\to\Aria"`. `--source` overrides `ARIA_SOURCE`; the default source is GitHub. Both build runners verify the actual Git HEAD on every build. Local edits block replacement, successful updates preserve the old checkout under `build/deps/aria-backup-*`, and failed fetches leave the current checkout intact.
 
+### Portable Python entry
+
+`python tools/build.py --test` reuses the locked dependency fetcher, configures
+CMake, builds and runs host tests. `--dry-run` is read-only; `--offline` forbids
+dependency downloads. Use `--qt-prefix`, `--aria-root`, `--config` and `--jobs`
+when needed. Windows defaults to MSVC (use a developer shell with Perl/NASM for
+OpenSSL); `--toolchain mingw` selects a separate cache. Only the implemented Qt
+desktop shell is accepted; mobile targets fail explicitly. Existing deployment
+and launch scripts remain available.
+
 ### Build (macOS)
 
 ```bash

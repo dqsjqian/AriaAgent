@@ -52,9 +52,7 @@ jobs:
         run: Get-Command cl, nmake, perl, nasm -ErrorAction Stop
       - name: Configure and build with Visual Studio 2026
         run: |
-          cmake -S . -B build/ci-vs2026 -G "Visual Studio 18 2026" -A x64 -DARIA_TARGET_QT=ON
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build build/ci-vs2026 --config Release --parallel 3
+          python tools/build.py --build-dir build/ci-vs2026 --generator "Visual Studio 18 2026" --jobs 3 --cmake-arg=-A --cmake-arg=x64
       - name: Run regression tests
         run: ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --no-tests=error
 
