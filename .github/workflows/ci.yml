@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Verify selection, rollback and cache contracts
-        run: python -m unittest discover -s tools/ci -p 'test_*.py'
+        run: python -m unittest discover -s scripts/ci -p 'test_*.py'
 
   vs2026:
     name: Qt desktop (VS2026 MSVC)
@@ -38,7 +38,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch pinned Aria
-        run: python tools/ci/fetch_aria.py
+        run: python scripts/ci/fetch_aria.py
       - uses: jurplel/install-qt-action@v4
         with:
           version: '6.8.3'
@@ -81,7 +81,7 @@ jobs:
             perl
             git
       - name: Fetch pinned Aria
-        run: python tools/ci/fetch_aria.py
+        run: python scripts/ci/fetch_aria.py
       - name: Configure and build desktop application
         run: |
           cmake -S . -B build/ci-win -G Ninja -DCMAKE_BUILD_TYPE=Release -DARIA_TARGET_QT=ON
@@ -105,7 +105,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Fetch pinned Aria
-        run: python tools/ci/fetch_aria.py
+        run: python scripts/ci/fetch_aria.py
 
       - name: Install Linux build dependencies
         if: runner.os == 'Linux'

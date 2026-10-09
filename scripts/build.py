@@ -33,7 +33,7 @@ Environment:
     JOBS            Parallel build jobs (default: CPU count)
 
 Build steps:
-    1. Verify pinned Aria via tools/ci/fetch_aria.py
+    1. Verify pinned Aria via scripts/ci/fetch_aria.py
     2. Detect Qt6 (or fail with a clear error)
     3. CMake configure (Ninja if available) with CMAKE_PREFIX_PATH=<qt>
     4. cmake --build
