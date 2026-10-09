@@ -9,12 +9,37 @@ Usage:
     python scripts/build.py run             # Debug build and launch
     python scripts/build.py release-run     # Release build and launch
     python scripts/build.py clean           # Remove all build output
-    python scripts/build.py --help          # Full options
+
+Parameters:
+    mode            Build mode (positional, default: release):
+                    - release:     Release build, output to build/flavors/release
+                    - debug:       Debug build, output to build/flavors/debug
+                    - run:         Debug build then launch the executable
+                    - release-run: Release build then launch the executable
+                    - clean:       Delete the entire build/ directory
+    --jobs N        Parallel build jobs (default: JOBS env or CPU count)
+    --qt-dir PATH   Qt6 install prefix, overrides QT_DIR env and auto-detection.
+                    Must contain lib/cmake/Qt6/Qt6Config.cmake (or cmake/Qt6/
+                    on Windows/MSYS2 layout).
+    --build-dir PATH
+                    Override the build directory (default:
+                    build/flavors/<release|debug>). Useful for CI matrices
+                    or side-by-side compiler builds.
 
 Environment:
-    QT_DIR          Qt6 install prefix (else auto-detected)
-    MSYS2_ROOT      MSYS2 install root (Windows only)
+    QT_DIR          Qt6 install prefix (else auto-detected: brew on macOS,
+                    MSYS2 UCRT64 on Windows, /usr/lib/qt6 etc. on Linux)
+    MSYS2_ROOT      MSYS2 install root (Windows only, for compiler/DLL lookup)
     JOBS            Parallel build jobs (default: CPU count)
+
+Build steps:
+    1. Verify pinned Aria via tools/ci/fetch_aria.py
+    2. Detect Qt6 (or fail with a clear error)
+    3. CMake configure (Ninja if available) with CMAKE_PREFIX_PATH=<qt>
+    4. cmake --build
+    5. Windows only: deploy DLLs via windeployqt + objdump recursive copy,
+       so the exe runs by double-click
+    6. run/release-run: launch the built executable
 """
 from __future__ import annotations
 
