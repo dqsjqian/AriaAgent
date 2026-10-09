@@ -32,12 +32,11 @@ from pathlib import Path
 
 try:
     from aria_deps.build_kit import Pipeline, deploy_qt_dlls
+    _HAS_BUILD_KIT = True
 except ImportError:
-    print("Error: aria-deps is required. Install it with:", file=sys.stderr)
-    print("    pip install aria-deps", file=sys.stderr)
-    print("Or from source: pip install git+https://github.com/dqsjqian/AriaDeps.git",
-          file=sys.stderr)
-    sys.exit(1)
+    _HAS_BUILD_KIT = False
+    Pipeline = None
+    deploy_qt_dlls = None
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -59,6 +58,10 @@ def aria_dep(args) -> list[str] | None:
 
 
 def main(argv=None) -> int:
+    if not _HAS_BUILD_KIT:
+        print("Error: aria-deps is required. Install it with:", file=sys.stderr)
+        print("    pip install aria-deps", file=sys.stderr)
+        return 1
     pipeline = Pipeline(
         name="aria-agent",
         root=ROOT,
