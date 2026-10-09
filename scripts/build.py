@@ -241,8 +241,13 @@ def main(argv=None) -> int:
         return 0
 
     build_type = "Debug" if args.mode in ("debug", "run") else "Release"
-    flavor = build_type.lower()
-    build_dir = args.build_dir or (ROOT / "build" / "flavors" / flavor)
+    # Unified directory scheme: build/unified/<platform>-<toolchain>-<config>-<arch>
+    # AriaAgent is Qt-based; platform defaults to qt, toolchain by host.
+    host = platform.system()
+    toolchain = "msvc" if host == "Windows" else "native"
+    arch = platform.machine()
+    suffix = f"qt-{toolchain}-{build_type.lower()}-{arch}"
+    build_dir = args.build_dir or (ROOT / "build" / "unified" / suffix)
 
     # Tool checks
     for tool in ("cmake", "git", "python3" if platform.system() != "Windows" else "python"):
