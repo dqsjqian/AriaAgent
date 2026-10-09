@@ -86,7 +86,7 @@ AriaAgent/
 │       ├── viewmodel/       #   AppText(UI 文案服务)
 │       └── platforms/qt/    #   ★ 平台壳:main.cpp(QtDispatcher)/
 │                            #     main_window / markdown_render
-├── build/deps/aria          # pinned Aria fetch (tools/ci/fetch_aria.py)
+├── build/deps/aria          # pinned Aria fetch (scripts/ci/fetch_aria.py)
 ├── core/CMakeLists.txt      # ariaagent_core
 └── modules/app/platforms/qt/CMakeLists.txt  # aria_agent 可执行
 ```
@@ -112,19 +112,19 @@ AriaAgent/
 - 手动调用 CMake 前先解析并校验 Aria 依赖：
 
 ```bash
-python tools/ci/fetch_aria.py
+python scripts/ci/fetch_aria.py
 ```
 
-根目录唯一的 `dependencies.json` 同时保存版本请求与每项的 `resolved` 结果。没有显式版本、也没有匹配锁时，首次解析最新稳定版并记录版本、提交和 SHA256；已有锁会直接复用，普通构建不会追随新发布。显式版本优先，例如 `python tools/ci/fetch_aria.py --version 3.1.1`（优先于 `ARIA_DEP_ARIA_VERSION`）；主动升级 Aria 使用 `python tools/ci/fetch_aria.py --update`。
+根目录唯一的 `dependencies.json` 同时保存版本请求与每项的 `resolved` 结果。没有显式版本、也没有匹配锁时，首次解析最新稳定版并记录版本、提交和 SHA256；已有锁会直接复用，普通构建不会追随新发布。显式版本优先，例如 `python scripts/ci/fetch_aria.py --version 3.1.1`（优先于 `ARIA_DEP_ARIA_VERSION`）；主动升级 Aria 使用 `python scripts/ci/fetch_aria.py --update`。
 
-C++ 库可用 `-DARIA_DEP_JSON_VERSION=3.12.0`、`-DARIA_DEP_MIRA_VERSION=1.0.0`、`-DARIA_DEP_OPENSSL_VERSION=4.0.3` 等覆盖；CMake 将临时覆盖写入构建目录的解析缓存，不修改源码中的 `dependencies.json`。要更新并保存共享锁，运行 `python tools/ci/update_dependencies.py`，审查变更后提交这一份依赖文件。显式源码覆盖和父工程已提供的依赖目标继续优先。
+C++ 库可用 `-DARIA_DEP_JSON_VERSION=3.12.0`、`-DARIA_DEP_MIRA_VERSION=1.0.0`、`-DARIA_DEP_OPENSSL_VERSION=4.0.3` 等覆盖；CMake 将临时覆盖写入构建目录的解析缓存，不修改源码中的 `dependencies.json`。要更新并保存共享锁，运行 `python scripts/ci/update_dependencies.py`，审查变更后提交这一份依赖文件。显式源码覆盖和父工程已提供的依赖目标继续优先。
 
 Qt 使用已安装的 SDK，不自动下载安装。未指定版本时优先选择可发现的最新版本；`-DARIA_DEP_QT_VERSION=6.8.3` 要求精确版本，`Qt6_DIR` / `CMAKE_PREFIX_PATH` 可指定 SDK 所在位置。
 
 锁定的 Aria 提交可从本地仓库获取，仍然必须匹配锁中的完整 SHA：
 
 ```bash
-python tools/ci/fetch_aria.py --source /path/to/Aria
+python scripts/ci/fetch_aria.py --source /path/to/Aria
 # 一键构建也支持相同的来源设置
 ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
 ```

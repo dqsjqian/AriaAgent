@@ -92,7 +92,7 @@ AriaAgent/
 │       ├── viewmodel/       #   AppText (UI string service)
 │       └── platforms/qt/    #   ★ Shell: main.cpp (QtDispatcher) /
 │                            #     main_window / markdown_render
-├── build/deps/aria          # pinned Aria fetch (tools/ci/fetch_aria.py)
+├── build/deps/aria          # pinned Aria fetch (scripts/ci/fetch_aria.py)
 ├── core/CMakeLists.txt      # ariaagent_core
 └── modules/app/platforms/qt/CMakeLists.txt  # aria_agent executable
 ```
@@ -136,19 +136,19 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 - Resolve and verify Aria before configuring CMake manually:
 
 ```bash
-python tools/ci/fetch_aria.py
+python scripts/ci/fetch_aria.py
 ```
 
-The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python tools/ci/fetch_aria.py --version 3.1.1` overrides `ARIA_DEP_ARIA_VERSION`. Run `python tools/ci/fetch_aria.py --update` to upgrade Aria deliberately.
+The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python scripts/ci/fetch_aria.py --version 3.1.1` overrides `ARIA_DEP_ARIA_VERSION`. Run `python scripts/ci/fetch_aria.py --update` to upgrade Aria deliberately.
 
-Override C++ libraries with options such as `-DARIA_DEP_JSON_VERSION=3.12.0`, `-DARIA_DEP_MIRA_VERSION=1.0.0`, and `-DARIA_DEP_OPENSSL_VERSION=4.0.3`. CMake records temporary overrides in a build-directory resolution cache without changing the source `dependencies.json`. To update the shared library lock, run `python tools/ci/update_dependencies.py`, review the changes, and commit this dependency file. Explicit source overrides and dependency targets supplied by a parent project retain priority.
+Override C++ libraries with options such as `-DARIA_DEP_JSON_VERSION=3.12.0`, `-DARIA_DEP_MIRA_VERSION=1.0.0`, and `-DARIA_DEP_OPENSSL_VERSION=4.0.3`. CMake records temporary overrides in a build-directory resolution cache without changing the source `dependencies.json`. To update the shared library lock, run `python scripts/ci/update_dependencies.py`, review the changes, and commit this dependency file. Explicit source overrides and dependency targets supplied by a parent project retain priority.
 
 Qt uses installed SDKs and never downloads or installs them automatically. The default prefers the latest discoverable version; `-DARIA_DEP_QT_VERSION=6.8.3` requires that exact version. Use `Qt6_DIR` / `CMAKE_PREFIX_PATH` to select an SDK location.
 
 A local repository can supply the exact Aria commit selected by the lock:
 
 ```bash
-python tools/ci/fetch_aria.py --source /path/to/Aria
+python scripts/ci/fetch_aria.py --source /path/to/Aria
 # The build runners accept the same source through the environment
 ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
 ```
