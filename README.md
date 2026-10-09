@@ -133,7 +133,7 @@ Windows 对应设置为 `$env:ARIA_SOURCE = "C:\path\to\Aria"`。`--source` 优�
 
 ### 统一 Python 入口
 
-`python tools/build.py --test` 串联现有锁定依赖获取、CMake 构建和本机测试；`--dry-run` 只输出计划，`--offline` 禁止依赖联网。支持 `--qt-prefix`、`--aria-root`、`--config`、`--jobs` 和隔离构建目录。Windows 默认 MSVC（外部 OpenSSL 构建仍需 Developer PowerShell、Perl/NASM），MinGW 使用 `--toolchain mingw`。当前只支持 Qt 桌面壳；未实现的 iOS/Android 会明确报错，不生成假的移动端构建。原部署/启动脚本继续保留。
+`python scripts/build.py --test` 串联现有锁定依赖获取、CMake 构建和本机测试；`--dry-run` 只输出计划，`--offline` 禁止依赖联网。支持 `--qt-prefix`、`--aria-root`、`--config`、`--jobs` 和隔离构建目录。Windows 默认 MSVC（外部 OpenSSL 构建仍需 Developer PowerShell、Perl/NASM），MinGW 使用 `--toolchain mingw`。当前只支持 Qt 桌面壳；未实现的 iOS/Android 会明确报错，不生成假的移动端构建。原部署/启动脚本继续保留。
 
 macOS 可用 `--arch x86_64` / `--arch arm64` 指定实际目标架构；Visual Studio 可用 `--generator-platform x64`（或 `ARM64`）。额外 CMake 定义使用 `--cmake-arg=-DNAME[:TYPE]=VALUE`，不能覆盖已选配置、源码和平台。复用构建目录前会检查编译器、工具链、架构和依赖路径，发现冲突保留原缓存并要求另选目录。
 

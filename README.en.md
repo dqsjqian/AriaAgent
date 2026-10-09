@@ -157,7 +157,7 @@ On Windows, set `$env:ARIA_SOURCE = "C:\path\to\Aria"`. `--source` overrides `AR
 
 ### Portable Python entry
 
-`python tools/build.py --test` reuses the locked dependency fetcher, configures
+`python scripts/build.py --test` reuses the locked dependency fetcher, configures
 CMake, builds and runs host tests. `--dry-run` is read-only; `--offline` forbids
 dependency downloads. Use `--qt-prefix`, `--aria-root`, `--config` and `--jobs`
 when needed. Windows defaults to MSVC (use a developer shell with Perl/NASM for
