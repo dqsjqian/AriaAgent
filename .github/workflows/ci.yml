@@ -52,7 +52,7 @@ jobs:
         run: Get-Command cl, nmake, perl, nasm -ErrorAction Stop
       - name: Configure and build with Visual Studio 2026
         run: |
-          python scripts/build.py --build-dir build/ci-vs2026 --generator "Visual Studio 18 2026" --generator-platform x64 --jobs 3
+          python scripts/build.py --build-dir build/ci-vs2026 --jobs 3
       - name: Run regression tests
         run: ctest --test-dir build/ci-vs2026 -C Release --output-on-failure --no-tests=error
 
