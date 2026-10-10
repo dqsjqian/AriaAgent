@@ -276,14 +276,20 @@ def main(argv=None) -> int:
         return 1
     print(f"[build] Qt6: {qt_prefix}")
 
-    # Windows: ensure MSYS2 tools on PATH
+    # Windows: pick the toolchain from the environment. An active MSVC
+    # environment (developer prompt / msvc-dev-cmd, cl on PATH) must keep
+    # cl; otherwise fall back to MSYS2/MinGW tools on PATH.
     msys2_bin = None
     if platform.system() == "Windows":
-        msys2_bin = find_msys2_bin()
-        if msys2_bin:
-            os.environ["PATH"] = str(msys2_bin) + os.pathsep + os.environ["PATH"]
-            os.environ.setdefault("CC", "gcc")
-            os.environ.setdefault("CXX", "g++")
+        if shutil.which("cl.exe") or shutil.which("cl"):
+            os.environ.setdefault("CC", "cl")
+            os.environ.setdefault("CXX", "cl")
+        else:
+            msys2_bin = find_msys2_bin()
+            if msys2_bin:
+                os.environ["PATH"] = str(msys2_bin) + os.pathsep + os.environ["PATH"]
+                os.environ.setdefault("CC", "gcc")
+                os.environ.setdefault("CXX", "g++")
 
     # Configure
     configure_cmd = ["cmake", "-S", str(ROOT), "-B", str(build_dir)]
