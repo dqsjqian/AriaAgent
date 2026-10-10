@@ -5,7 +5,7 @@
 #    core/           pure C++ — zero Qt. Engine + ViewModel, platform-agnostic.
 #                    mobile shells (iOS/Android) reuse this verbatim.
 #    modules/*/platforms/qt  Qt6 views for the app and settings modules.
-#    build/deps/aria   pinned Aria fetch (tools/ci/fetch_aria.py)
+#    build/deps/aria   pinned Aria fetch (scripts/ci/fetch_aria.py)
 #
 #  One core, many shells. Platform switch:
 #    -DARIA_TARGET_QT=ON   Qt desktop (default)
@@ -35,12 +35,12 @@ endif()
 
 # ── Aria (pinned fetch; no git submodule) ───────────────────────────────────
 set(ARIA_DIR "${CMAKE_CURRENT_SOURCE_DIR}/build/deps/aria" CACHE PATH
-    "Pinned Aria source tree, created by tools/ci/fetch_aria.py")
+    "Pinned Aria source tree, created by scripts/ci/fetch_aria.py")
 if(NOT EXISTS "${ARIA_DIR}/CMakeLists.txt")
     message(FATAL_ERROR
         "Aria not found at ${ARIA_DIR}.\n"
         "Run once before configuring:\n"
-        "  python tools/ci/fetch_aria.py\n"
+        "  python scripts/ci/fetch_aria.py\n"
         "(no git submodules -- Aria is fetched at a pinned commit SHA)")
 endif()
 

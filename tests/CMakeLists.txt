@@ -2,7 +2,7 @@
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME fetch_aria_safety
-    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/tools/ci/test_fetch_aria.py")
+    COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/ci/test_fetch_aria.py")
 set_tests_properties(fetch_aria_safety PROPERTIES TIMEOUT 120)
 
 add_executable(llm_client_smoke llm_client_smoke.cpp)
