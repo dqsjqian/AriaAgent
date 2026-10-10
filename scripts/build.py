@@ -62,15 +62,18 @@ def run(cmd, **kwargs):
 
 def find_qt_prefix() -> Path | None:
     """Locate Qt6 install prefix."""
-    env_dir = os.environ.get("QT_DIR")
-    if env_dir:
+    # QT_DIR first, then the env vars set by jurplel/install-qt-action on CI.
+    for env_name in ("QT_DIR", "QT_INSTALL_DIR", "QT_ROOT_DIR"):
+        env_dir = os.environ.get(env_name)
+        if not env_dir:
+            continue
         p = Path(env_dir)
         if (p / "lib" / "cmake" / "Qt6" / "Qt6Config.cmake").is_file():
             return p
         # Windows layout: cmake dir directly under prefix
         if (p / "cmake" / "Qt6" / "Qt6Config.cmake").is_file():
             return p
-        return None
+    return None
 
     system = platform.system()
     if system == "Darwin":
@@ -257,7 +260,7 @@ def main(argv=None) -> int:
 
     # Verify pinned Aria
     print("[build] Verifying pinned Aria (set ARIA_SOURCE for a local repository)...")
-    fetch_aria = ROOT / "tools" / "ci" / "fetch_aria.py"
+    fetch_aria = ROOT / "scripts" / "ci" / "fetch_aria.py"
     if fetch_aria.is_file():
         run([sys.executable, str(fetch_aria)])
 
