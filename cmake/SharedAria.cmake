@@ -50,7 +50,8 @@ foreach(_feature QT HTTP JNI APPKIT UIKIT)
         list(APPEND _aria_components "${_component}")
     endif()
 endforeach()
-unset(aria_DIR CACHE)
-unset(aria_DIR)
-find_package(aria CONFIG REQUIRED COMPONENTS ${_aria_components}
-    PATHS "${ARIA_SDK_PREFIX}" NO_DEFAULT_PATH)
+# Set the config directory directly: in a cross build (iOS, Android) CMake
+# re-roots every search prefix under CMAKE_FIND_ROOT_PATH and never looks at
+# the SDK the environment just installed.
+set(aria_DIR "${ARIA_SDK_PREFIX}/lib/cmake/aria" CACHE PATH "Aria package config" FORCE)
+find_package(aria CONFIG REQUIRED COMPONENTS ${_aria_components} NO_DEFAULT_PATH)
