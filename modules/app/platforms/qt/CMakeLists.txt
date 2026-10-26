@@ -9,7 +9,14 @@
 
 set(REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+# Aria's Qt adapter may already have found Qt6 in this same configure, and
+# Qt's EntryPointPrivate config creates its imported target unconditionally in
+# current releases: a second find_package aborts with "add_library cannot
+# create imported target \"EntryPointMinGW32\" because another target with the
+# same name already exists".
+if(NOT TARGET Qt6::Widgets)
+    find_package(Qt6 REQUIRED COMPONENTS Widgets)
+endif()
 
 add_executable(aria_agent
     main.cpp
