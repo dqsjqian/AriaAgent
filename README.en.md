@@ -92,7 +92,7 @@ AriaAgent/
 │       ├── viewmodel/       #   AppText (UI string service)
 │       └── platforms/qt/    #   ★ Shell: main.cpp (QtDispatcher) /
 │                            #     main_window / markdown_render
-├── build/deps/aria          # pinned Aria fetch (scripts/ci/fetch_aria.py)
+├── $FORGEDEPS_HOME/build/aria/<target>          # pinned Aria fetch (scripts/ci/fetch_aria.py)
 ├── core/CMakeLists.txt      # ariaagent_core
 └── modules/app/platforms/qt/CMakeLists.txt  # aria_agent executable
 ```
@@ -132,44 +132,29 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 - **Windows UCRT64**: MSYS2 UCRT64 (GCC 14+), Qt6, CMake ≥ 3.21, and the MSYS `make` and `perl` packages (`pacman -S make perl`) for the source OpenSSL build.
 - **Windows MSVC**: run CMake in an x64 Developer PowerShell with `cl`, `nmake`, Perl, and NASM on `PATH`. Selecting a Visual Studio generator does not initialize the developer environment for the external OpenSSL build.
 - **macOS**: Xcode CommandLineTools, Qt6 (`brew install qt`), CMake ≥ 3.21
-- **All platforms**: a C++23 compiler, Git, and Python 3.10+.
+- **All platforms**: a C++23 compiler, Git, and Python 3.14+.
 - Resolve and verify Aria before configuring CMake manually:
 
-```bash
-python scripts/ci/fetch_aria.py
-```
-
-The single root `dependencies.json` contains version requests and each dependency’s `resolved` result. Without an explicit version or a matching lock, the first resolution selects the latest stable release and records its version, commit, and SHA256. Existing locks are reused, so ordinary builds do not follow new releases. Explicit versions take priority: for example, `python scripts/ci/fetch_aria.py --version 3.1.1` overrides `ARIA_DEP_ARIA_VERSION`. Run `python scripts/ci/fetch_aria.py --update` to upgrade Aria deliberately.
-
-Override C++ libraries with options such as `-DARIA_DEP_JSON_VERSION=3.12.0`, `-DARIA_DEP_MIRA_VERSION=1.0.0`, and `-DARIA_DEP_OPENSSL_VERSION=4.0.3`. CMake records temporary overrides in a build-directory resolution cache without changing the source `dependencies.json`. To update the shared library lock, run `python scripts/ci/update_dependencies.py`, review the changes, and commit this dependency file. Explicit source overrides and dependency targets supplied by a parent project retain priority.
-
-Qt uses installed SDKs and never downloads or installs them automatically. The default prefers the latest discoverable version; `-DARIA_DEP_QT_VERSION=6.8.3` requires that exact version. Use `Qt6_DIR` / `CMAKE_PREFIX_PATH` to select an SDK location.
-
-A local repository can supply the exact Aria commit selected by the lock:
+Install the build tools and register one workspace shared by your projects:
 
 ```bash
-python scripts/ci/fetch_aria.py --source /path/to/Aria
-# The build runners accept the same source through the environment
-ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
+python -m pip install -r requirements-build.txt
+python -m forgedeps init /path/to/ForgeDepsWorkspace
+python scripts/build.py --test
 ```
 
-On Windows, set `$env:ARIA_SOURCE = "C:\path\to\Aria"`. `--source` overrides `ARIA_SOURCE`; the default source is GitHub. Both build runners verify the actual Git HEAD on every build. Local edits block replacement, successful updates preserve the old checkout under `build/deps/aria-backup-*`, and failed fetches leave the current checkout intact.
+Builds use the recorded `dependencies.json` selection without selecting new releases. `FORGEDEPS_HOME` overrides the registered workspace. Sources live in `sources/`; Aria and third-party SDKs live in `build/<name>/<target>/`. Applications link those prefixes directly. Each target keeps one current artifact; changes to versions, compilers, ABI, source contents or recipes rebuild it transactionally and preserve the previous artifact on failure.
+
+`--aria-root /path/to/Aria` (CMake `ARIA_DIR`, or Tutorial `ARIA_ROOT`) selects editable sources which are still content-hashed and built into the shared SDK. Qt, NDK and Apple SDKs are installed separately; actual toolchain and Qt contents participate in artifact identity. Use `scripts/ci/update_dependencies.py` to change versions, then review and commit the lock.
+
+The Python entry holds reader leases through configure, build, tests and deployment. For manual commands use `python -m forgedeps.build_kit.session --configure -- cmake -S ... -B ...`, then `python -m forgedeps.build_kit.session --build-dir <build> -- <command>`. Offline builds require prepared sources/downloads and the toolchain; incompatible or modified artifacts fail verification.
+
+`fetch_aria.py` is optional shared-source preparation. Local mirror development checkouts require `--source <repo> --destination <path>`. Application builds prepare their SDK automatically.
+
 
 ### Portable Python entry
 
-`python scripts/build.py --test` reuses the locked dependency fetcher, configures
-CMake, builds and runs host tests. `--dry-run` is read-only; `--offline` forbids
-dependency downloads. Use `--qt-prefix`, `--aria-root`, `--config` and `--jobs`
-when needed. Windows defaults to MSVC (use a developer shell with Perl/NASM for
-OpenSSL); `--toolchain mingw` selects a separate cache. Only the implemented Qt
-desktop shell is accepted; mobile targets fail explicitly. Existing deployment
-and launch scripts remain available.
-
-Use `--arch x86_64` / `--arch arm64` for the actual macOS target architecture,
-or `--generator-platform x64` (or `ARM64`) with Visual Studio. Extra definitions
-use `--cmake-arg=-DNAME[:TYPE]=VALUE` and cannot override the selected configuration,
-source or platform. Compiler, toolchain, architecture and dependency-path cache
-conflicts are rejected before fetching; existing files are preserved.
+`python scripts/build.py --test` prepares the shared Qt/HTTP/TLS SDK and holds its reader lease through configure, build, tests and deployment. Options include `--qt-dir`, `--aria-root`, `--build-dir`, `--jobs`, `--generator`, `--generator-platform` and `--offline`. Use the `debug` command for Debug. Windows OpenSSL requires Developer PowerShell and Perl/NASM. Only the Qt desktop shell is implemented.
 
 ### Build (macOS)
 
@@ -183,9 +168,9 @@ cmake --build build/flavors/debug -j 8
 ### Build (Windows)
 
 ```powershell
-.\scripts\build.ps1             # Release build and deploy runtime DLLs
-.\scripts\build.ps1 debug       # Debug build and deploy runtime DLLs
-.\scripts\build.ps1 run         # Debug build, deploy, and launch
+python scripts/build.py             # Release build and deploy runtime DLLs
+python scripts/build.py debug       # Debug build and deploy runtime DLLs
+python scripts/build.py run         # Debug build, deploy, and launch
 ```
 
 The runner finds MSYS2 UCRT64, Qt6, and Ninja. Set `$env:MSYS2_ROOT` or
@@ -223,7 +208,7 @@ $env:ARIA_LLM_MODEL    = "deepseek-chat"
 ### Release build
 
 ```powershell
-.\scripts\build.ps1 release
+python scripts/build.py release
 ```
 
 ## 🧩 Extending

@@ -9,8 +9,7 @@
 
 set(REPO_ROOT ${CMAKE_CURRENT_SOURCE_DIR}/../../../..)
 
-include("${ARIA_DIR}/cmake/ariaDependencies.cmake")
-aria_find_qt6(REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets)
 
 add_executable(aria_agent
     main.cpp
@@ -52,17 +51,11 @@ add_custom_command(TARGET aria_agent POST_BUILD
 
 # Keep known licenses beside the app on every build, including document-only
 # changes. Qt's corresponding source and runtime notices remain separate work.
-foreach(component json mira openssl)
-    get_target_property(${component}_source ariaagent_core ARIA_LICENSE_${component}_SOURCE)
-endforeach()
 set(license_manifest "${CMAKE_CURRENT_BINARY_DIR}/licenses-$<CONFIG>.cmake")
 file(GENERATE OUTPUT "${license_manifest}" CONTENT
 "set(license_output [==[$<TARGET_FILE_DIR:aria_agent>/licenses]==])
 set(agent_source [==[${REPO_ROOT}]==])
-set(aria_source [==[${ARIA_DIR}]==])
-set(json_source [==[${json_source}]==])
-set(mira_source [==[${mira_source}]==])
-set(openssl_source [==[${openssl_source}]==])
+set(shared_prefixes [==[${ARIA_SDK_PREFIXES}]==])
 include([==[${REPO_ROOT}/cmake/StageAgentLicenses.cmake]==])
 ")
 add_custom_target(ariaagent_licenses

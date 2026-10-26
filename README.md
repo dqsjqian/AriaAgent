@@ -86,7 +86,7 @@ AriaAgent/
 │       ├── viewmodel/       #   AppText(UI 文案服务)
 │       └── platforms/qt/    #   ★ 平台壳:main.cpp(QtDispatcher)/
 │                            #     main_window / markdown_render
-├── build/deps/aria          # pinned Aria fetch (scripts/ci/fetch_aria.py)
+├── $FORGEDEPS_HOME/build/aria/<target>          # pinned Aria fetch (scripts/ci/fetch_aria.py)
 ├── core/CMakeLists.txt      # ariaagent_core
 └── modules/app/platforms/qt/CMakeLists.txt  # aria_agent 可执行
 ```
@@ -108,53 +108,48 @@ AriaAgent/
 - **Windows UCRT64**：MSYS2 UCRT64（GCC 14+）、Qt6、CMake ≥ 3.21，以及 MSYS 的 `make`、`perl`（`pacman -S make perl`）；源码 OpenSSL 使用这两项工具。
 - **Windows MSVC**：在 x64 Developer PowerShell 中运行 CMake，确保 `cl`、`nmake`、Perl 和 NASM 在 `PATH` 中；选择 Visual Studio 生成器不会自动为外部 OpenSSL 构建初始化开发环境。
 - **macOS**:Xcode CommandLineTools、Qt6(brew install qt)、CMake ≥ 3.21
-- **通用**:支持 C++23 的编译器、Git、Python 3.10+。
+- **通用**:支持 C++23 的编译器、Git、Python 3.14+。
 - 手动调用 CMake 前先解析并校验 Aria 依赖：
 
-```bash
-python scripts/ci/fetch_aria.py
-```
-
-根目录唯一的 `dependencies.json` 同时保存版本请求与每项的 `resolved` 结果。没有显式版本、也没有匹配锁时，首次解析最新稳定版并记录版本、提交和 SHA256；已有锁会直接复用，普通构建不会追随新发布。显式版本优先，例如 `python scripts/ci/fetch_aria.py --version 3.1.1`（优先于 `ARIA_DEP_ARIA_VERSION`）；主动升级 Aria 使用 `python scripts/ci/fetch_aria.py --update`。
-
-C++ 库可用 `-DARIA_DEP_JSON_VERSION=3.12.0`、`-DARIA_DEP_MIRA_VERSION=1.0.0`、`-DARIA_DEP_OPENSSL_VERSION=4.0.3` 等覆盖；CMake 将临时覆盖写入构建目录的解析缓存，不修改源码中的 `dependencies.json`。要更新并保存共享锁，运行 `python scripts/ci/update_dependencies.py`，审查变更后提交这一份依赖文件。显式源码覆盖和父工程已提供的依赖目标继续优先。
-
-Qt 使用已安装的 SDK，不自动下载安装。未指定版本时优先选择可发现的最新版本；`-DARIA_DEP_QT_VERSION=6.8.3` 要求精确版本，`Qt6_DIR` / `CMAKE_PREFIX_PATH` 可指定 SDK 所在位置。
-
-锁定的 Aria 提交可从本地仓库获取，仍然必须匹配锁中的完整 SHA：
+安装构建工具后，注册一个可供所有项目共享的工作区：
 
 ```bash
-python scripts/ci/fetch_aria.py --source /path/to/Aria
-# 一键构建也支持相同的来源设置
-ARIA_SOURCE=/path/to/Aria ./scripts/build.sh
+python -m pip install -r requirements-build.txt
+python -m forgedeps init /path/to/ForgeDepsWorkspace
+python scripts/build.py --test
 ```
 
-Windows 对应设置为 `$env:ARIA_SOURCE = "C:\path\to\Aria"`。`--source` 优先于 `ARIA_SOURCE`，未设置时使用 GitHub。每次运行会检查实际 Git HEAD；本地修改会阻止更新。更新成功后，旧依赖保留在 `build/deps/aria-backup-*`，拉取失败保留当前依赖。
+默认从 `dependencies.json` 的已解析锁准备源码和 SDK；构建不自动选择新版本。`FORGEDEPS_HOME` 可覆盖已注册工作区。源码位于工作区 `sources/`，Aria 和第三方产物位于 `build/<name>/<target>/`；应用直接链接此处，每个目标只保留当前产物。版本、编译器、ABI、源码或配方变化会触发显式构建替换，失败保留旧产物。
+
+`--aria-root /path/to/Aria`（CMake 的 `ARIA_DIR`，Tutorial 为 `ARIA_ROOT`）提供可编辑源码；其内容仍被哈希并编译进共享 SDK，不再嵌入应用子目录。Qt、NDK 和 Apple SDK 由用户安装，实际工具链与 Qt 内容进入产物身份。更新版本使用 `scripts/ci/update_dependencies.py`，审查并提交锁文件。
+
+Python 入口持有配置、编译、测试和部署所需的消费锁。手工命令使用 `python -m forgedeps.build_kit.session --configure -- cmake -S ... -B ...`，后续构建/测试使用 `python -m forgedeps.build_kit.session --build-dir <build> -- <command>`。离线构建要求已准备对应源码、归档和工具链；不兼容或被改动的产物会失败。
+
+`fetch_aria.py` 只用于单独准备共享源码；本地镜像开发 checkout 使用 `--source <repo> --destination <path>`。默认应用构建不需要先运行此命令。
+
 
 ### 统一 Python 入口
 
-`python scripts/build.py --test` 串联现有锁定依赖获取、CMake 构建和本机测试；`--dry-run` 只输出计划，`--offline` 禁止依赖联网。支持 `--qt-prefix`、`--aria-root`、`--config`、`--jobs` 和隔离构建目录。Windows 默认 MSVC（外部 OpenSSL 构建仍需 Developer PowerShell、Perl/NASM），MinGW 使用 `--toolchain mingw`。当前只支持 Qt 桌面壳；未实现的 iOS/Android 会明确报错，不生成假的移动端构建。原部署/启动脚本继续保留。
-
-macOS 可用 `--arch x86_64` / `--arch arm64` 指定实际目标架构；Visual Studio 可用 `--generator-platform x64`（或 `ARM64`）。额外 CMake 定义使用 `--cmake-arg=-DNAME[:TYPE]=VALUE`，不能覆盖已选配置、源码和平台。复用构建目录前会检查编译器、工具链、架构和依赖路径，发现冲突保留原缓存并要求另选目录。
+`python scripts/build.py --test` 准备共享 Qt/HTTP/TLS SDK，再在消费锁内配置、编译、运行测试与部署。支持 `--qt-dir`、`--aria-root`、`--build-dir`、`--jobs`、`--generator` 和 `--generator-platform`；Debug 使用 `debug` 子命令，`--offline` 要求已有依赖缓存。Windows 的外部 OpenSSL 构建需要 Developer PowerShell 与 Perl/NASM，当前仅支持 Qt 桌面壳。
 
 ### 一键构建(macOS / Linux)
 
 ```bash
-./scripts/build.sh             # Release
-./scripts/build.sh debug       # Debug
-./scripts/build.sh run         # Debug 构建并运行
-./scripts/build.sh clean       # 清理全部构建产物
+python scripts/build.py             # Release
+python scripts/build.py debug       # Debug
+python scripts/build.py run         # Debug 构建并运行
+python scripts/build.py clean       # 清理全部构建产物
 ```
 
-脚本每次构建都会校验 Aria 锁定提交、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt ./scripts/build.sh` 指定。
+脚本每次构建都会校验 Aria 锁定提交、探测 Qt6/Ninja，并使用 `build/flavors/<配置>/` 隔离构建目录。非 Homebrew Qt 可通过 `QT_DIR=/path/to/qt python scripts/build.py` 指定。
 
 ### 一键构建(Windows)
 
 ```powershell
-.\scripts\build.ps1             # Release + 部署运行时 DLL
-.\scripts\build.ps1 debug       # Debug + 部署运行时 DLL
-.\scripts\build.ps1 run         # Debug 构建、部署并运行
-.\scripts\build.ps1 clean       # 清理全部构建产物
+python scripts/build.py             # Release + 部署运行时 DLL
+python scripts/build.py debug       # Debug + 部署运行时 DLL
+python scripts/build.py run         # Debug 构建、部署并运行
+python scripts/build.py clean       # 清理全部构建产物
 ```
 
 脚本会自动探测 MSYS2 UCRT64、Qt6 和 Ninja；非标准安装位置可通过 `$env:MSYS2_ROOT`、`$env:QT_DIR` 指定。
@@ -162,7 +157,7 @@ macOS 可用 `--arch x86_64` / `--arch arm64` 指定实际目标架构；Visual 
 ### 验证
 
 ```bash
-ctest --test-dir build/flavors/release --output-on-failure
+python scripts/build.py --test
 ```
 
 测试包括依赖拉取安全回归，以及使用本地 HTTP 服务验证普通响应和 SSE 流式响应的 `llm_client_smoke`；无需配置 LLM API 密钥。
@@ -190,7 +185,7 @@ $env:ARIA_LLM_MODEL    = "deepseek-chat"
 ### 发布构建
 
 ```powershell
-.\scripts\build.ps1 release
+python scripts/build.py release
 ```
 
 ## 🧩 扩展

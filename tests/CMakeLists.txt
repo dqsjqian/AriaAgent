@@ -1,6 +1,9 @@
 # AriaAgent tests — dependency safety and the Mira-backed LLM client.
 
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
+if(FORGEDEPS_PYTHON_EXECUTABLE)
+    set(Python3_EXECUTABLE "${FORGEDEPS_PYTHON_EXECUTABLE}")
+endif()
+find_package(Python3 3.14 REQUIRED COMPONENTS Interpreter)
 add_test(NAME fetch_aria_safety
     COMMAND "${Python3_EXECUTABLE}" "${PROJECT_SOURCE_DIR}/scripts/ci/test_fetch_aria.py")
 set_tests_properties(fetch_aria_safety PROPERTIES TIMEOUT 120)

@@ -43,3 +43,6 @@ venv/
 .env
 .skills_data/
 .workbuddy/
+
+# Shared dependency workspace (CI/local opt-in)
+.forgedeps/

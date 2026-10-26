@@ -73,8 +73,6 @@ def find_qt_prefix() -> Path | None:
         # Windows layout: cmake dir directly under prefix
         if (p / "cmake" / "Qt6" / "Qt6Config.cmake").is_file():
             return p
-    return None
-
     system = platform.system()
     if system == "Darwin":
         brew = shutil.which("brew")
@@ -132,7 +130,7 @@ def find_msys2_bin() -> Path | None:
     return None
 
 
-def deploy_dlls(build_dir: Path, msys2_bin: Path | None):
+def deploy_dlls(build_dir: Path, msys2_bin: Path | None, *, configuration="Release", qt_prefix=None):
     """Deploy runtime DLLs next to the exe (Windows only).
 
     1. windeployqt -> Qt DLLs + plugins
@@ -143,28 +141,31 @@ def deploy_dlls(build_dir: Path, msys2_bin: Path | None):
         return
 
     bin_dir = build_dir / "bin"
+    if not (bin_dir / "aria_agent.exe").is_file():
+        bin_dir = bin_dir / configuration
     exe = bin_dir / "aria_agent.exe"
     if not exe.is_file():
         print(f"[deploy] exe not found: {exe}", file=sys.stderr)
         sys.exit(1)
 
+    # Qt deployment also applies to MSVC; it must not depend on GNU objdump.
+    candidates = ([Path(qt_prefix) / "bin/windeployqt.exe"] if qt_prefix else [])
+    found = shutil.which("windeployqt.exe") or shutil.which("windeployqt")
+    if found:
+        candidates.append(Path(found))
+    if msys2_bin:
+        candidates.append(msys2_bin / "windeployqt.exe")
+    windeployqt = next((path for path in candidates if path.is_file()), None)
+    if windeployqt is None:
+        raise ValueError("windeployqt is required to deploy the selected Qt runtime")
+    print("[deploy] windeployqt...")
+    subprocess.run([str(windeployqt), "--no-translations", "--no-system-d3d-compiler",
+                    "--no-opengl-sw", str(exe)], check=True)
+
     if msys2_bin is None:
         msys2_bin = find_msys2_bin()
     if msys2_bin is None or not (msys2_bin / "objdump.exe").is_file():
-        print("[deploy] objdump not found, skipping DLL deployment", file=sys.stderr)
-        return
-
-    # 1. Qt deployment via windeployqt
-    windeployqt = msys2_bin / "windeployqt.exe"
-    if windeployqt.is_file():
-        print("[deploy] windeployqt...")
-        subprocess.run(
-            [str(windeployqt), "--no-translations", "--no-system-d3d-compiler",
-             "--no-opengl-sw", str(exe)],
-            capture_output=True,
-        )
-    else:
-        print("[deploy] windeployqt not found, skipping Qt plugins")
+        return  # MSVC runtime deployment is handled by windeployqt above.
 
     # 2. Recursive dependency copy via objdump
     system_dll = re.compile(
@@ -235,6 +236,11 @@ def main(argv=None) -> int:
     parser.add_argument("--jobs", type=int, default=int(os.environ.get("JOBS", os.cpu_count() or 4)))
     parser.add_argument("--qt-dir", type=Path, help="Qt6 install prefix (overrides QT_DIR)")
     parser.add_argument("--build-dir", type=Path, help="Override build directory")
+    parser.add_argument("--aria-root", type=Path, help="Explicit editable Aria source override")
+    parser.add_argument("--test", action="store_true", help="Run CTest inside the dependency lease")
+    parser.add_argument("--offline", action="store_true", help="Require prepared dependency sources and downloads")
+    parser.add_argument("--generator")
+    parser.add_argument("--generator-platform")
     args = parser.parse_args(argv)
 
     if args.mode == "clean":
@@ -258,11 +264,14 @@ def main(argv=None) -> int:
             print(f"[build] Error: {tool} is not installed or not on PATH", file=sys.stderr)
             return 1
 
-    # Verify pinned Aria
-    print("[build] Verifying pinned Aria (set ARIA_SOURCE for a local repository)...")
-    fetch_aria = ROOT / "scripts" / "ci" / "fetch_aria.py"
-    if fetch_aria.is_file():
-        run([sys.executable, str(fetch_aria)])
+    # A fresh clone needs only Python: prepare (once, shared) the pinned
+    # ForgeDeps tooling plus CMake/Ninja when missing, then continue here.
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import forgedeps_bootstrap
+    forgedeps_bootstrap.ensure(Path(__file__).resolve().parents[1] / "requirements-build.txt")
+    from forgedeps.build_kit.session import run_session
+    aria = args.aria_root.resolve() if args.aria_root else ""
+    commands = []
 
     # Qt6 detection
     qt_prefix = args.qt_dir
@@ -270,11 +279,7 @@ def main(argv=None) -> int:
         qt_prefix = Path(os.environ["QT_DIR"])
     if qt_prefix is None:
         qt_prefix = find_qt_prefix()
-    if qt_prefix is None:
-        print("[build] Error: Qt6 was not found. Install Qt6 or set QT_DIR to its prefix.",
-              file=sys.stderr)
-        return 1
-    print(f"[build] Qt6: {qt_prefix}")
+    print(f"[build] Qt6: {qt_prefix or 'CMake system search'}")
 
     # Windows: pick the toolchain from the environment. An active MSVC
     # environment (developer prompt / msvc-dev-cmd, cl on PATH) must keep
@@ -293,35 +298,45 @@ def main(argv=None) -> int:
 
     # Configure
     configure_cmd = ["cmake", "-S", str(ROOT), "-B", str(build_dir)]
-    if shutil.which("ninja"):
+    if args.generator:
+        configure_cmd += ["-G", args.generator]
+    elif shutil.which("ninja"):
         configure_cmd += ["-G", "Ninja"]
+    if args.generator_platform:
+        configure_cmd += ["-A", args.generator_platform]
     configure_cmd += [
         f"-DCMAKE_BUILD_TYPE={build_type}",
-        f"-DCMAKE_PREFIX_PATH={qt_prefix}",
+        f"-DARIA_DIR={aria}",
+        f"-DARIA_DEPENDENCIES_OFFLINE={'ON' if args.offline else 'OFF'}",
+        f"-DFORGEDEPS_PYTHON_EXECUTABLE={sys.executable}",
     ]
+    if qt_prefix is not None:
+        configure_cmd.append(f"-DCMAKE_PREFIX_PATH={qt_prefix}")
     print(f"[build] Configuring {build_type}")
-    run(configure_cmd)
+    commands.append(configure_cmd)
 
     # Build
     print(f"[build] Building with {args.jobs} jobs")
-    run(["cmake", "--build", str(build_dir), "--parallel", str(args.jobs)])
+    commands.append(["cmake", "--build", str(build_dir), "--config", build_type,
+                     "--parallel", str(args.jobs)])
+    if args.test:
+        commands.append(["ctest", "--test-dir", str(build_dir), "-C", build_type,
+                         "--output-on-failure", "--no-tests=error"])
 
-    # Windows: deploy DLLs
-    if platform.system() == "Windows":
-        deploy_dlls(build_dir, msys2_bin)
-
-    # Verify executable
-    exe_name = "aria_agent.exe" if platform.system() == "Windows" else "aria_agent"
-    executable = build_dir / "bin" / exe_name
-    if not executable.is_file():
-        print(f"[build] Error: executable not found at {executable}", file=sys.stderr)
-        return 1
-
-    print(f"[build] Complete: {executable}")
-    if args.mode in ("run", "release-run"):
-        print("[build] Launching AriaAgent")
-        subprocess.run([str(executable)])
-    return 0
+    def finish(environment):
+        if platform.system() == "Windows":
+            deploy_dlls(build_dir, msys2_bin, configuration=build_type, qt_prefix=qt_prefix)
+        exe_name = "aria_agent.exe" if platform.system() == "Windows" else "aria_agent"
+        candidates = [build_dir / "bin" / exe_name, build_dir / "bin" / build_type / exe_name]
+        executable = next((path for path in candidates if path.is_file()), candidates[0])
+        if not executable.is_file():
+            raise ValueError(f"Executable not found at {executable}")
+        print(f"[build] Complete: {executable}")
+        if args.mode in ("run", "release-run"):
+            subprocess.run([str(executable)], env=environment, check=True)
+        return 0
+    return run_session(commands, cwd=ROOT, run_command=lambda cmd, env: run(cmd, env=env),
+                       post_build=finish)
 
 
 if __name__ == "__main__":
