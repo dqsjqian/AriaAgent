@@ -42,6 +42,25 @@ set(ARIA_SDK_TLS ON)
 set(ARIA_SDK_SHARED OFF)
 include(SharedAria)
 
+# ── OpenSSL selection for Mira TLS/QUIC ─────────────────────────────────────
+# Mira's TLS/QUIC engines call SSL_set1_ipaddr / SSL_set1_dnsname (OpenSSL
+# 3.5+ APIs). Qt's bundled libssl lacks both symbols, and Qt sits first in
+# CMAKE_PREFIX_PATH, so MiraConfig's find_package(OpenSSL) used to pick Qt's
+# copy and llm_client_smoke failed to link. The ForgeDeps SDK environment
+# already ships a pinned OpenSSL prefix with those symbols, so put it first:
+# Mira then links the forged static libssl instead of Qt's shared one, while
+# Qt itself still resolves from the later CMAKE_PREFIX_PATH entries. Qt
+# Core/Gui/Widgets do not DT_NEEDED libssl, so this does not change the Qt
+# runtime linkage of aria_agent.
+foreach(_ariaagent_prefix IN LISTS ARIA_SDK_PREFIXES)
+    if(_ariaagent_prefix MATCHES "/openssl/")
+        list(REMOVE_ITEM CMAKE_PREFIX_PATH "${_ariaagent_prefix}")
+        list(PREPEND CMAKE_PREFIX_PATH "${_ariaagent_prefix}")
+        message(STATUS "AriaAgent: preferring forged OpenSSL prefix ${_ariaagent_prefix} over Qt's libssl")
+    endif()
+endforeach()
+unset(_ariaagent_prefix)
+
 # ── Pure-C++ core (agent engine + services + module API) ─────────────────────
 add_subdirectory(core)
 add_subdirectory(tests)
