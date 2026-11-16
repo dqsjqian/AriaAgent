@@ -40,6 +40,8 @@ set(ARIA_SDK_QT ON)
 set(ARIA_SDK_HTTP ON)
 set(ARIA_SDK_TLS ON)
 set(ARIA_SDK_SHARED OFF)
+set(ARIA_SDK_I18N ON)
+set(ARIA_SDK_APP ON)
 include(SharedAria)
 
 # ── OpenSSL selection for Mira TLS/QUIC ─────────────────────────────────────

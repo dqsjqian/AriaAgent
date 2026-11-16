@@ -1,11 +1,9 @@
-// AriaAgent — ModulesManifest: explicit assembly list of feature modules.
-//
-// Static libraries strip unreferenced symbols at link time, so modules are
-// registered here explicitly (no global-constructor auto-registration).
-// Adding a new feature = add a modules/<m>/ directory + one line here.
+// Explicit feature assembly keeps static-library factories reachable.
 #pragma once
 
-#include "module_api/ModuleRegistry.h"
+#include "module_api/ViewModelProvider.h"
+#include <aria/subscription.hpp>
 
-/// Register every business module (called once by the app shell).
-void populate_modules(module_api::ModuleRegistry& registry);
+// Keep registrations alive for the app lifetime. Releasing a token revokes
+// its factory and cached ViewModel through Aria's application layer.
+void populate_modules(ViewModelProvider& provider, aria::SubscriptionBag& registrations);

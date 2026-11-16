@@ -23,8 +23,7 @@
 #include "agent/todo_tools.hpp"
 #include "agent/tool_registry.hpp"
 #include "services/ServiceHub.h"
-#include "i18n/I18n.h"
-#include "i18n/XmlI18nService.h"
+#include "i18n/AppLocale.h"
 
 #include "app/viewmodel/app_text.hpp"
 #include "chat/viewmodel/chat_view_model.hpp"
@@ -82,14 +81,12 @@ int main(int argc, char* argv[]) {
     ServiceHub hub;
     qputenv("ARIA_WORKSPACE_ROOT", QByteArray::fromStdString(resolve_project_root()));
 
-    // i18n backend (lives for the whole app; VMs read via i18n::str).
-    static auto i18n_service = std::make_unique<agent::services::XmlI18nService>(
-        resolve_i18n_dir(), "zh-CN", "zh-CN");
-    hub.register_instance<agent::services::II18nService>(std::move(i18n_service));
-    agent::i18n::set_backend(&hub.i18n());
+    // Explicit app-local context; all consumers share ownership.
+    auto locale = agent::make_app_locale(resolve_i18n_dir());
+    hub.register_instance(locale);
 
     // App module's UI-string service (consumed by the view controller).
-    hub.register_singleton<AppText>();
+    hub.register_instance(std::make_shared<AppText>(locale));
 
     // Tool registry (populated once; chat module resolves it).
     auto tool_registry = std::make_shared<agent::ToolRegistry>();
@@ -101,7 +98,7 @@ int main(int argc, char* argv[]) {
     hub.register_instance(tool_registry);
 
     // Cross-module state services.
-    hub.register_singleton<agent::SessionStore>();
+    hub.register_instance(std::make_shared<agent::SessionStore>(locale));
     hub.register_singleton<agent::ToolTraceStore>();
     hub.register_singleton<agent::SettingsStore>();
     // TodoStore is a singleton by design; share it (no ownership).
@@ -109,14 +106,15 @@ int main(int argc, char* argv[]) {
         &agent::TodoStore::instance(), [](agent::TodoStore*) {}));
 
     // ── Modules (plugin manifest) + lazy VM provider ───────────────────────
-    module_api::ModuleRegistry modules;
-    populate_modules(modules);
-    ViewModelProvider vms(hub, modules);
+    module_api::ModuleContext module_context(hub);
+    ViewModelProvider vms(module_context);
+    aria::SubscriptionBag module_registrations;
+    populate_modules(vms, module_registrations);
 
     // The approval prompt is a VIEW concern: the VM only asks, the view
     // controller answers (localized text from the app module's AppText).
     {
-        auto chat_vm = vms.view_model_as<ChatViewModel>("chat");
+        auto chat_vm = vms.get_as<ChatViewModel>("chat");
         AppText& texts = hub.service<AppText>();
         chat_vm->approval_ui = [&texts](const std::string& tool,
                                         const std::string& args) {

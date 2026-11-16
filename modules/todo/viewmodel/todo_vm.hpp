@@ -16,7 +16,7 @@
 
 class TodoVm : public BaseVm {
 public:
-    explicit TodoVm(agent::TodoStore& store);
+    TodoVm(agent::TodoStore& store, std::shared_ptr<aria::i18n::LocaleContext> locale);
     ~TodoVm() override;
 
     /// Snapshot of the current todo board (agent-visible, last-wins).

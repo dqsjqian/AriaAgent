@@ -26,7 +26,9 @@ struct SettingsValues {
 
 class SettingsStore {
 public:
-    SettingsStore();
+    /// Empty path uses the normal application settings file. Embedded hosts
+    /// and tests can supply an isolated file without changing HOME.
+    explicit SettingsStore(std::string storage_path = {});
 
     /// Load persisted values into `out` (keeps existing defaults where the
     /// file has no entry).
@@ -40,6 +42,7 @@ public:
 
 private:
     std::string path() const;
+    std::string storage_path_;
 };
 
 } // namespace agent

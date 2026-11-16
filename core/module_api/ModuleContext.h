@@ -14,6 +14,7 @@ public:
     explicit ModuleContext(ServiceHub& hub) : hub_(hub) {}
 
     ServiceHub& services() { return hub_; }
+    std::shared_ptr<aria::i18n::LocaleContext> localization() { return hub_.localization(); }
 
     /// Fetch a stable service by type (registered in the ServiceHub).
     template <typename T>

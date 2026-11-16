@@ -1,7 +1,10 @@
 // AriaAgent — AppText implementation.
 #include "app/viewmodel/app_text.hpp"
 
-#include "i18n/I18n.h"
+#include "i18n/AppLocale.h"
+
+#include <stdexcept>
+#include <utility>
 
 namespace {
 
@@ -25,16 +28,16 @@ constexpr const char* kKeys[] = {
 
 } // namespace
 
-AppText::AppText() {
-    refresh();
-    // Keep the cache in sync whenever the language changes.
-    lang_sub_ = agent::i18n::on_language_changed(
-        [this](const std::string&) { refresh(); });
+AppText::AppText(std::shared_ptr<aria::i18n::LocaleContext> locale)
+    : locale_(std::move(locale)), bindings_(locale_, std::string(agent::kTextDomain)) {
+    if (!locale_) throw std::invalid_argument("AppText requires a locale context");
+    // Aria refreshes this cache on language and catalog revision changes.
+    bindings_.localize([this] { refresh(); });
 }
 
 void AppText::refresh() {
     for (const char* key : kKeys) {
-        cache_[key] = agent::i18n::str(key);
+        cache_[key] = locale_->tr(agent::kTextDomain, key);
     }
 }
 

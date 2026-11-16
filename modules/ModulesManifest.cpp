@@ -7,10 +7,23 @@
 #include "todo/module/TodoModule.h"
 #include "trajectory/module/TrajectoryModule.h"
 
-void populate_modules(module_api::ModuleRegistry& registry) {
-    registry.add(chat::make_chat_module());
-    registry.add(sessions::make_sessions_module());
-    registry.add(trajectory::make_trajectory_module());
-    registry.add(todo::make_todo_module());
-    registry.add(settings::make_settings_module());
+namespace {
+
+void add_module(ViewModelProvider& provider, aria::SubscriptionBag& registrations,
+                std::shared_ptr<module_api::IModule> module) {
+    const auto id = module->id();
+    registrations += provider.add(id,
+        [module = std::move(module)](module_api::ModuleContext& context) {
+            return module->create_view_model(context);
+        });
+}
+
+} // namespace
+
+void populate_modules(ViewModelProvider& provider, aria::SubscriptionBag& registrations) {
+    add_module(provider, registrations, chat::make_chat_module());
+    add_module(provider, registrations, sessions::make_sessions_module());
+    add_module(provider, registrations, trajectory::make_trajectory_module());
+    add_module(provider, registrations, todo::make_todo_module());
+    add_module(provider, registrations, settings::make_settings_module());
 }

@@ -1,10 +1,10 @@
-// AriaAgent — IModule: business module plugin contract.
+// AriaAgent — application-specific feature factory contract.
 //
 // Each feature module implements this and exports a make_<mod>_module()
 // factory. The app layer lists them explicitly in the modules manifest
 // (no global-constructor auto-registration — static libs get stripped by
-// the linker otherwise). This is the "plugin / extension point" of the app:
-// a module contributes ViewModel(s) and (optionally) registers services.
+// the linker otherwise). The manifest adapts these factories to Aria's
+// ViewModelProvider, which owns registration lifetime and cached instances.
 #pragma once
 
 #include <memory>

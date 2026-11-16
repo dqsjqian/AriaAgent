@@ -1,7 +1,7 @@
 # ============================================================================
 #  AriaAgent core — pure C++, zero Qt.
 #    ariaagent_core    agent engine + tools + session store + i18n +
-#                      ServiceHub (DI) + module_api (BaseVm/IModule/Registry)
+#                      ServiceHub (DI) + application-specific module adapters
 #
 #  Any platform shell (Qt desktop, iOS UIKit, Android) links this and
 #  provides its own views + platform services. Nothing in this directory may
@@ -29,6 +29,8 @@ target_include_directories(ariaagent_core PUBLIC
 )
 target_link_libraries(ariaagent_core PUBLIC
     aria::binding      # transitively pulls runtime/async/core/abi
+    aria::i18n
+    aria::app
     aria::async
     nlohmann_json::nlohmann_json
     Mira::transport

@@ -9,6 +9,9 @@
 // message history (which the engine can replay for multi-turn).
 #pragma once
 
+#include <aria/i18n/i18n.hpp>
+
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -34,7 +37,10 @@ struct SessionMeta {
 // access through the ViewModels (single-threaded on the UI thread).
 class SessionStore {
 public:
-    SessionStore();
+    /// Empty directory keeps the normal application path. Tests and embedded
+    /// hosts can explicitly select another directory without changing HOME.
+    explicit SessionStore(std::shared_ptr<aria::i18n::LocaleContext> locale,
+                          std::string directory = {});
 
     // Directory used for persistence (creates it on demand).
     static std::string base_dir();
@@ -78,6 +84,8 @@ private:
     std::string path_for(const std::string& id) const;
     std::string derive_title() const;
 
+    std::shared_ptr<aria::i18n::LocaleContext> locale_;
+    std::string directory_;
     std::string   current_id_;
     MessageList   current_history_;
 };

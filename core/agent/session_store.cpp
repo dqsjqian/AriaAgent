@@ -1,7 +1,7 @@
 // AriaAgent — session store implementation.
 #include "agent/session_store.hpp"
 
-#include "i18n/I18n.h"
+#include "i18n/AppLocale.h"
 
 #include <algorithm>
 #include <atomic>
@@ -10,6 +10,8 @@
 #include <filesystem>
 #include <fstream>
 #include <sstream>
+#include <stdexcept>
+#include <utility>
 
 #include <nlohmann/json.hpp>
 
@@ -33,7 +35,11 @@ std::string home_dir() {
 
 namespace agent {
 
-SessionStore::SessionStore() {
+SessionStore::SessionStore(std::shared_ptr<aria::i18n::LocaleContext> locale,
+                           std::string directory)
+    : locale_(std::move(locale)),
+      directory_(directory.empty() ? base_dir() : std::move(directory)) {
+    if (!locale_) throw std::invalid_argument("SessionStore requires a locale context");
     // Start with the most recent session, or create a fresh one.
     auto existing = list();
     if (!existing.empty()) {
@@ -48,7 +54,7 @@ std::string SessionStore::base_dir() {
 }
 
 std::string SessionStore::path_for(const std::string& id) const {
-    return base_dir() + "/" + id + ".json";
+    return directory_ + "/" + id + ".json";
 }
 
 std::string SessionStore::create(const std::string& title) {
@@ -61,10 +67,10 @@ std::string SessionStore::create(const std::string& title) {
     // the ofstream below fails silently and the session is never persisted
     // (list() then never finds it → "new chat" appears broken).
     std::error_code ec;
-    std::filesystem::create_directories(base_dir(), ec);
+    std::filesystem::create_directories(directory_, ec);
     json doc;
     doc["id"] = id;
-    doc["title"] = title.empty() ? agent::i18n::str("new_chat_default") : title;
+    doc["title"] = title.empty() ? locale_->tr(kTextDomain, "new_chat_default") : title;
     doc["created_at"] = t;
     doc["updated_at"] = t;
     doc["messages"] = json::array();
@@ -77,8 +83,8 @@ std::vector<SessionMeta> SessionStore::list() const {
     std::vector<SessionMeta> out;
     namespace fs = std::filesystem;
     std::error_code ec;
-    if (!fs::is_directory(base_dir(), ec)) return out;
-    for (const auto& e : fs::directory_iterator(base_dir(), ec)) {
+    if (!fs::is_directory(directory_, ec)) return out;
+    for (const auto& e : fs::directory_iterator(directory_, ec)) {
         if (e.path().extension() != ".json") continue;
         std::ifstream f(e.path());
         if (!f.is_open()) continue;
@@ -86,7 +92,7 @@ std::vector<SessionMeta> SessionStore::list() const {
             const auto doc = json::parse(f);
             SessionMeta m;
             m.id = doc.value("id", e.path().stem().string());
-            m.title = doc.value("title", agent::i18n::str("new_chat_default"));
+            m.title = doc.value("title", locale_->tr(kTextDomain, "new_chat_default"));
             m.created_at = doc.value("created_at", static_cast<int64_t>(0));
             m.updated_at = doc.value("updated_at", static_cast<int64_t>(0));
             out.push_back(std::move(m));
@@ -159,7 +165,7 @@ void SessionStore::persist_current(const std::string& title_hint) {
     const int64_t ts = now_ms();
     json doc;
     doc["id"] = current_id_;
-    doc["title"] = t.empty() ? agent::i18n::str("new_chat_default") : t;
+    doc["title"] = t.empty() ? locale_->tr(kTextDomain, "new_chat_default") : t;
     // Preserve the original created_at (never overwrite — sorting key).
     {
         std::ifstream f(path_for(current_id_));
@@ -178,7 +184,7 @@ void SessionStore::persist_current(const std::string& title_hint) {
     doc["messages"] = json::array();
     for (const auto& m : current_history_) doc["messages"].push_back(m.to_storage_json());
     std::error_code ec;
-    std::filesystem::create_directories(base_dir(), ec);
+    std::filesystem::create_directories(directory_, ec);
     std::ofstream f(path_for(current_id_), std::ios::trunc);
     f << doc.dump(2);
 }

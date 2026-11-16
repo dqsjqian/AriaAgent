@@ -18,8 +18,8 @@ env:
   # to cp1252 and raises UnicodeEncodeError on them.
   PYTHONUTF8: "1"
   PYTHONIOENCODING: utf-8
-  # Candidate source is explicit; published dependency locks remain unchanged.
-  # The reviewed Aria source is the released tag the dependency lock names.
+  # Check out the exact released Aria tag recorded in the dependency lock.
+  # The explicit source path keeps every SDK build on that reviewed revision.
   ARIA_SDK_SOURCE: ${{ github.workspace }}/build/aria-candidate
   GCC_VERSION: "16"
   LLVM_VERSION: "23"
@@ -40,11 +40,11 @@ jobs:
         if: env.VIRTUAL_ENV == ''
         with:
           python-version: '3.14'
-      - name: Checkout reviewed Aria SDK candidate
+      - name: Checkout pinned Aria SDK source
         uses: actions/checkout@v7
         with:
           repository: dqsjqian/Aria
-          ref: v3.2.6
+          ref: v3.3.0
           path: build/aria-candidate
           persist-credentials: false
       - name: Install shared dependency tooling
@@ -70,11 +70,11 @@ jobs:
         if: env.VIRTUAL_ENV == ''
         with:
           python-version: '3.14'
-      - name: Checkout reviewed Aria SDK candidate
+      - name: Checkout pinned Aria SDK source
         uses: actions/checkout@v7
         with:
           repository: dqsjqian/Aria
-          ref: v3.2.6
+          ref: v3.3.0
           path: build/aria-candidate
           persist-credentials: false
       - name: Install shared dependency tooling
@@ -120,11 +120,11 @@ jobs:
         if: env.VIRTUAL_ENV == ''
         with:
           python-version: '3.14'
-      - name: Checkout reviewed Aria SDK candidate
+      - name: Checkout pinned Aria SDK source
         uses: actions/checkout@v7
         with:
           repository: dqsjqian/Aria
-          ref: v3.2.6
+          ref: v3.3.0
           path: build/aria-candidate
           persist-credentials: false
       - uses: msys2/setup-msys2@v2
@@ -193,11 +193,11 @@ jobs:
         if: env.VIRTUAL_ENV == ''
         with:
           python-version: '3.14'
-      - name: Checkout reviewed Aria SDK candidate
+      - name: Checkout pinned Aria SDK source
         uses: actions/checkout@v7
         with:
           repository: dqsjqian/Aria
-          ref: v3.2.6
+          ref: v3.3.0
           path: build/aria-candidate
           persist-credentials: false
       - name: Install shared dependency tooling

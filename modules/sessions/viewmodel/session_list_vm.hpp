@@ -18,7 +18,7 @@
 
 class SessionListVm : public BaseVm {
 public:
-    explicit SessionListVm(agent::SessionStore& store);
+    SessionListVm(agent::SessionStore& store, std::shared_ptr<aria::i18n::LocaleContext> locale);
 
     // ── Reactive surface (bound by the sidebar) ────────────────────────────
     aria::Property<std::vector<agent::SessionMeta>> sessions;

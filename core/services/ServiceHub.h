@@ -10,7 +10,7 @@
 
 #include <aria/runtime/container.hpp>
 
-#include "i18n/II18nService.h"
+#include <aria/i18n/i18n.hpp>
 
 class ServiceHub {
 public:
@@ -35,8 +35,8 @@ public:
     [[nodiscard]] aria::runtime::Container& container() { return container_; }
 
     // Convenience direct access (high-frequency services).
-    [[nodiscard]] agent::services::II18nService& i18n() {
-        return service<agent::services::II18nService>();
+    [[nodiscard]] std::shared_ptr<aria::i18n::LocaleContext> localization() {
+        return container_.resolve<aria::i18n::LocaleContext>();
     }
 
 private:

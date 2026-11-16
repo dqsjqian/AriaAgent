@@ -1,7 +1,6 @@
 // AriaAgent — SettingsVm implementation.
 #include "settings/viewmodel/settings_vm.hpp"
 
-#include "i18n/I18n.h"
 
 #include <algorithm>
 #include <cstdlib>
@@ -28,7 +27,9 @@ std::vector<std::string> normalize_models(std::vector<std::string> values,
 
 } // namespace
 
-SettingsVm::SettingsVm(agent::SettingsStore& store) : store_(store) {
+SettingsVm::SettingsVm(agent::SettingsStore& store,
+                         std::shared_ptr<aria::i18n::LocaleContext> locale)
+    : BaseVm(std::move(locale)), store_(store) {
     // Defaults (env overrides, then persisted JSON overrides in load()).
     if (const char* p = std::getenv("ARIA_LLM_BASE_URL"); p && *p) base_url = p;
     else base_url = "https://api.deepseek.com";
@@ -39,7 +40,7 @@ SettingsVm::SettingsVm(agent::SettingsStore& store) : store_(store) {
     if (const char* p = std::getenv("ARIA_LLM_SYSTEM_PROMPT"); p && *p) {
         system_prompt = p;
     } else {
-        system_prompt = agent::i18n::str("default_system_prompt");
+        system_prompt = tr("default_system_prompt");
     }
     theme          = 2;
     language       = "zh-CN";
@@ -114,7 +115,7 @@ void SettingsVm::load() {
     // rewriting the settings file during load or migration.
     v.models = models.get();
     store_.apply_runtime(v);
-    agent::i18n::set_language(language.get());
+    locale_context()->set_language(language.get());
 }
 
 void SettingsVm::save() {
@@ -145,7 +146,7 @@ void SettingsVm::save() {
     store_.save(v);
 
     // Switch the language (BaseVm + AppText refresh automatically).
-    agent::i18n::set_language(language.get());
+    locale_context()->set_language(language.get());
 
     settings_saved.emit();
 }

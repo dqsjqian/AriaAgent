@@ -11,7 +11,9 @@
 
 class TrajectoryVm : public BaseVm {
 public:
-    explicit TrajectoryVm(agent::ToolTraceStore& store) : store_(store) {}
+    TrajectoryVm(agent::ToolTraceStore& store,
+                 std::shared_ptr<aria::i18n::LocaleContext> locale)
+        : BaseVm(std::move(locale)), store_(store) {}
 
     aria::ObservableList<UiToolCall>& trace() { return store_.trace(); }
     const aria::ObservableList<UiToolCall>& trace() const { return store_.trace(); }

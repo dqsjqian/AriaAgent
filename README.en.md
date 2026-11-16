@@ -82,7 +82,7 @@ AriaAgent/
 ├── core/                    # ★ Pure C++, zero Qt (reused verbatim on mobile)
 │   ├── agent/               #   engine: agent loop / llm_client / tools /
 │   │                        #   session_store / json_schema / subprocess
-│   └── module_api/          #   BaseVm / IModule / ModuleRegistry / ServiceHub
+│   └── module_api/          #   BaseVm / IModule / ModuleContext / Aria provider
 ├── modules/                 # ★ feature modules (plugin pattern, VM per module)
 │   ├── chat/                #   chat module (engine bridge + ChatViewModel)
 │   ├── sessions/            #   session list (sidebar projection)
@@ -126,6 +126,10 @@ reactive engine (`Property` / `ObservableList` / `Command`).
 > screenshots would add nothing. Windows additionally has two independently
 > validated toolchains — MSVC + Qt6 and MSYS2 UCRT64.
 
+Localization uses Aria's optional `aria::i18n` component. The platform entry creates an explicit `LocaleContext`, injected into ViewModels, `AppText`, and `SessionStore`. The application retains its `app` domain and default-language policy; Aria owns XML parsing, fallback, and reactive text bindings.
+
+Module factories and cached primary ViewModels use the optional `aria::app` `ViewModelProvider`. The explicit manifest registers statically compiled features, and the app retains registration tokens for their lifetime. This does not implement dynamic-library loading or hot unloading. `IModule`, `ModuleContext`, and concrete platform Views remain application-specific.
+
 ## 🚀 Quick start
 
 ### Prerequisites
@@ -144,6 +148,8 @@ python scripts/build.py --test
 ```
 
 Builds use the recorded `dependencies.json` selection without selecting new releases. `FORGEDEPS_HOME` overrides the registered workspace. Sources live in `sources/`; Aria and third-party SDKs live in `build/<name>/<target>/`. Applications link those prefixes directly. Each target keeps one current artifact; changes to versions, compilers, ABI, source contents or recipes rebuild it transactionally and preserve the previous artifact on failure.
+
+Localization and application composition use Aria 3.3.0's optional `i18n` and `app` components, configured by ForgeRecipes 0.1.9. Build tooling is pinned in `requirements-build.txt`; the Aria version and revision are pinned in `dependencies.json`. Local development can still select explicit Aria sources or a matching installed SDK.
 
 `--aria-root /path/to/Aria` (CMake `ARIA_DIR`, or Tutorial `ARIA_ROOT`) selects editable sources which are still content-hashed and built into the shared SDK. Qt, NDK and Apple SDKs are installed separately; actual toolchain and Qt contents participate in artifact identity. Use `scripts/ci/update_dependencies.py` to change versions, then review and commit the lock.
 
@@ -182,7 +188,7 @@ The runner finds MSYS2 UCRT64, Qt6, and Ninja. Set `$env:MSYS2_ROOT` or
 ctest --test-dir build/flavors/debug --output-on-failure
 ```
 
-The tests cover dependency-fetch safety and `llm_client_smoke`, which exercises ordinary completions and SSE streaming against a local HTTP server. No LLM API key is required.
+The tests cover `module_smoke` (lazy factories, cache ownership, registration revocation, and the real feature manifest), dependency-fetch safety, `llm_client_smoke` (ordinary completions and SSE streaming against a local HTTP server), and `localization_smoke` (catalogs, language switching, independent contexts, and localized session titles). `qt_shell_smoke` constructs the main window and all settings pages offscreen, checking language round trips, new sessions, and teardown. It explicitly injects temporary JSON, INI, and session storage, without accessing real user data or sending model requests. No LLM API key is required.
 
 ### Configure & run
 

@@ -18,7 +18,7 @@
 
 class SettingsVm : public BaseVm {
 public:
-    explicit SettingsVm(agent::SettingsStore& store);
+    SettingsVm(agent::SettingsStore& store, std::shared_ptr<aria::i18n::LocaleContext> locale);
 
     /// Load persisted values (or defaults); called once at startup.
     void load();

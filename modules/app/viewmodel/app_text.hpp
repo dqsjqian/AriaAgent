@@ -14,11 +14,12 @@
 #include <string>
 #include <unordered_map>
 
-#include <aria/subscription.hpp>
+#include <aria/i18n/i18n.hpp>
+#include <memory>
 
 class AppText {
 public:
-    AppText();
+    explicit AppText(std::shared_ptr<aria::i18n::LocaleContext> locale);
 
     /// Re-read every entry from the i18n table for the current language.
     /// Auto-invoked on language change (subscribed in the ctor).
@@ -29,6 +30,7 @@ public:
     const std::string& text(const std::string& key) const { return text(key.c_str()); }
 
 private:
+    std::shared_ptr<aria::i18n::LocaleContext> locale_;
     std::unordered_map<std::string, std::string> cache_;
-    aria::Subscription lang_sub_;
+    aria::i18n::TextBindings bindings_;
 };

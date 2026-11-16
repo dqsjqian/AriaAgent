@@ -3,8 +3,7 @@
 // widgets. VMs are requested lazily through the ViewModelProvider (never
 // created up-front in main()); all user-facing strings come from the app
 // module's AppText service (or from VM Properties) — never from i18n
-// directly. When Aria grows a real ViewModelLocator/binding layer, this
-// window will consume that instead of ViewModelProvider.
+// directly. Aria owns the ViewModelProvider registration and cache contract.
 #pragma once
 
 #include <memory>
@@ -23,6 +22,7 @@ class QPushButton;
 class QLabel;
 class QListWidget;
 class QStackedWidget;
+class QSettings;
 class QWidget;
 
 class AppText;
@@ -36,7 +36,8 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(ViewModelProvider& vms, ServiceHub& hub,
-                        QWidget* parent = nullptr);
+                        QWidget* parent = nullptr,
+                        std::shared_ptr<QSettings> app_settings = {});
 
     // Re-read the theme from settings and restyle everything.
     void apply_theme();
@@ -69,7 +70,11 @@ private:
     void on_open_settings();
     void refresh_session_list();
 
-    // module VMs (owned by main.cpp; raw pointers here)
+    // Hosts may inject a separate settings file; default is the normal
+    // platform-native AriaAgent settings. Keep it alive with the window.
+    std::shared_ptr<QSettings> app_settings_;
+
+    // Module VMs are cached by the app-owned provider and outlive the window.
     AppText*       texts_;
     SettingsVm*    settings_vm_;
     SessionListVm* sessions_vm_;

@@ -12,7 +12,7 @@ std::shared_ptr<aria::binding::ViewModel>
 ChatModule::create_view_model(module_api::ModuleContext& ctx) {
     return std::make_shared<ChatViewModel>(ctx.service<agent::ToolRegistry>(),
                                            ctx.service<agent::SessionStore>(),
-                                           ctx.service<agent::ToolTraceStore>());
+                                           ctx.service<agent::ToolTraceStore>(), ctx.localization());
 }
 
 std::shared_ptr<module_api::IModule> make_chat_module() {

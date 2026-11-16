@@ -33,7 +33,8 @@ class ChatViewModel : public BaseVm {
 public:
     ChatViewModel(agent::ToolRegistry& registry,
                   agent::SessionStore& sessions,
-                  agent::ToolTraceStore& trace);
+                  agent::ToolTraceStore& trace,
+                  std::shared_ptr<aria::i18n::LocaleContext> locale);
     ~ChatViewModel() override;
 
     // ── Reactive surface (bound by any view) ───────────────────────────────

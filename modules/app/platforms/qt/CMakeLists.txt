@@ -69,3 +69,28 @@ add_custom_target(ariaagent_licenses
     COMMAND ${CMAKE_COMMAND} -P "${license_manifest}"
     VERBATIM)
 add_dependencies(aria_agent ariaagent_licenses)
+
+# Compile the production views into an isolated, offline shell regression.
+# It injects temporary JSON/INI/session storage instead of running main.cpp.
+add_executable(qt_shell_smoke
+    ${REPO_ROOT}/tests/qt_shell_smoke.cpp
+    main_window.cpp
+    markdown_render.cpp
+    ${REPO_ROOT}/modules/settings/platforms/qt/settings_dialog.cpp
+)
+set_target_properties(qt_shell_smoke PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+    AUTOMOC ON
+)
+target_include_directories(qt_shell_smoke PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${REPO_ROOT}/modules/settings/platforms/qt
+)
+target_link_libraries(qt_shell_smoke PRIVATE
+    ariaagent_modules aria::qt6 Qt6::Widgets aria::warnings
+)
+add_test(NAME qt_shell_smoke COMMAND qt_shell_smoke "${REPO_ROOT}/i18n")
+set_tests_properties(qt_shell_smoke PROPERTIES
+    TIMEOUT 30
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)

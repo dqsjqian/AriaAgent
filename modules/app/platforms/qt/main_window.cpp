@@ -5,7 +5,6 @@
 
 #include "app/viewmodel/app_text.hpp"
 #include "chat/viewmodel/chat_view_model.hpp"
-#include "i18n/I18n.h"
 #include "sessions/viewmodel/session_list_vm.hpp"
 #include "settings/viewmodel/settings_vm.hpp"
 #include "settings/platforms/qt/settings_dialog.hpp"
@@ -311,14 +310,17 @@ void MainWindow::apply_theme() {
     }
 }
 
-MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
+MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent,
+                       std::shared_ptr<QSettings> app_settings)
     : QMainWindow(parent),
+      app_settings_(app_settings ? std::move(app_settings)
+                                 : std::make_shared<QSettings>("AriaAgent", "AriaAgent")),
       texts_(&hub.service<AppText>()),
-      settings_vm_(vms.view_model_as<SettingsVm>("settings").get()),
-      sessions_vm_(vms.view_model_as<SessionListVm>("sessions").get()),
-      traj_vm_(vms.view_model_as<TrajectoryVm>("trajectory").get()),
-      todo_vm_(vms.view_model_as<TodoVm>("todo").get()),
-      chat_vm_(vms.view_model_as<ChatViewModel>("chat").get()) {
+      settings_vm_(vms.get_as<SettingsVm>("settings").get()),
+      sessions_vm_(vms.get_as<SessionListVm>("sessions").get()),
+      traj_vm_(vms.get_as<TrajectoryVm>("trajectory").get()),
+      todo_vm_(vms.get_as<TodoVm>("todo").get()),
+      chat_vm_(vms.get_as<ChatViewModel>("chat").get()) {
     setWindowTitle(QString::fromStdString(texts_->text("window_title")));
     resize(1280, 820);
     setMinimumSize(960, 640);
@@ -627,17 +629,16 @@ MainWindow::MainWindow(ViewModelProvider& vms, ServiceHub& hub, QWidget* parent)
     });
 
     // Everything is constructed — restore workspace state, then restyle.
-    QSettings app_settings("AriaAgent", "AriaAgent");
-    workspace_root_ = app_settings.value(
+    workspace_root_ = app_settings_->value(
         "workspace/root", qEnvironmentVariable("ARIA_WORKSPACE_ROOT")).toString();
-    ws_level_ = app_settings.value("workspace/access", 1).toInt();
+    ws_level_ = app_settings_->value("workspace/access", 1).toInt();
     if (!QFileInfo(workspace_root_).isDir()) {
         workspace_root_ = QDir::currentPath();
     }
     update_workspace(workspace_root_, ws_level_);
     apply_theme();
     apply_language();
-    lang_sub_ = agent::i18n::on_language_changed([this](const std::string&) {
+    lang_sub_ = hub.localization()->on_language_changed([this](const std::string&) {
         QMetaObject::invokeMethod(this, &MainWindow::apply_language,
                                   Qt::QueuedConnection);
     });
@@ -771,9 +772,8 @@ void MainWindow::update_workspace(const QString& path, int level) {
     char buf[2] = {char('0' + ws_level_), 0};
     qputenv("ARIA_WORKSPACE_ROOT", canonical.toUtf8());
     qputenv("ARIA_WORKSPACE_WRITE", buf);
-    QSettings app_settings("AriaAgent", "AriaAgent");
-    app_settings.setValue("workspace/root", canonical);
-    app_settings.setValue("workspace/access", ws_level_);
+    app_settings_->setValue("workspace/root", canonical);
+    app_settings_->setValue("workspace/access", ws_level_);
 }
 
 void MainWindow::refresh_model_selector() {
@@ -926,9 +926,8 @@ void MainWindow::show_message_menu(const QPoint& pos) {
 
     // Persist per-message feedback (keyed by a content hash) — P2-4.
     const QString key = QString::number(qHash(text), 16);
-    QSettings s("AriaAgent", "AriaAgent");
-    if (chosen == good)      s.setValue("feedback/" + key, "up");
-    else if (chosen == bad)  s.setValue("feedback/" + key, "down");
+    if (chosen == good)      app_settings_->setValue("feedback/" + key, "up");
+    else if (chosen == bad)  app_settings_->setValue("feedback/" + key, "down");
 }
 
 void MainWindow::scroll_bottom() {

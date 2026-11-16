@@ -8,7 +8,7 @@ namespace trajectory {
 
 std::shared_ptr<aria::binding::ViewModel>
 TrajectoryModule::create_view_model(module_api::ModuleContext& ctx) {
-    return std::make_shared<TrajectoryVm>(ctx.service<agent::ToolTraceStore>());
+    return std::make_shared<TrajectoryVm>(ctx.service<agent::ToolTraceStore>(), ctx.localization());
 }
 
 std::shared_ptr<module_api::IModule> make_trajectory_module() {

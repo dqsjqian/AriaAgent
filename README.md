@@ -76,7 +76,7 @@ AriaAgent/
 ├── core/                    # ★ 纯 C++,零 Qt 依赖(移动端直接复用)
 │   ├── agent/               #   引擎层:agent 循环 / llm_client / 工具 /
 │   │                        #   session_store / json_schema / subprocess
-│   └── module_api/          #   BaseVm / IModule / ModuleRegistry / ServiceHub
+│   └── module_api/          #   BaseVm / IModule / ModuleContext / Aria provider
 ├── modules/                 # ★ 业务模块(plugin pattern,每个模块自带 VM)
 │   ├── chat/                #   聊天模块(引擎桥接 + ChatViewModel)
 │   ├── sessions/            #   会话列表(侧边栏投影)
@@ -94,6 +94,10 @@ AriaAgent/
 > 注意:`platform/` 目录是早期残留的死代码,实际 Qt 壳在
 > `modules/app/platforms/qt/`,构建以顶层 CMakeLists.txt 为准。
 > iOS / Android 壳(未来)同样放 `modules/app/platforms/` 下,复用同一套 core。
+
+本地化由 Aria 的可选 `aria::i18n` 组件提供。平台入口创建显式 `LocaleContext` 并通过服务上下文传给 VM、`AppText` 和 `SessionStore`；应用只保留 `app` 文案域与默认语言策略，XML 解析、回退和响应式文本绑定由框架负责。
+
+模块工厂与主 VM 缓存由可选 `aria::app` 的 `ViewModelProvider` 管理。显式 manifest 注册静态编译的业务模块，应用持有注册 token 控制生命周期；本工程不提供动态库加载或热卸载。`IModule`、`ModuleContext` 与具体平台 View 仍属于应用。
 
 **跨线程**:VM 通过 `aria::runtime::main_dispatcher()` 回到 UI 线程 —— Qt 壳在
 `main.cpp` 里安装 `QtDispatcher`,iOS/Android 壳装各自的 dispatcher,VM 本身
@@ -120,6 +124,8 @@ python scripts/build.py --test
 ```
 
 默认从 `dependencies.json` 的已解析锁准备源码和 SDK；构建不自动选择新版本。`FORGEDEPS_HOME` 可覆盖已注册工作区。源码位于工作区 `sources/`，Aria 和第三方产物位于 `build/<name>/<target>/`；应用直接链接此处，每个目标只保留当前产物。版本、编译器、ABI、源码或配方变化会触发显式构建替换，失败保留旧产物。
+
+本地化与应用组装使用 Aria 3.3.0 的 `i18n`、`app` 可选组件，由 ForgeRecipes 0.1.9 配置 SDK。构建工具版本固定在 `requirements-build.txt`，Aria 源码版本与 revision 固定在 `dependencies.json`；本地开发仍可显式覆盖 Aria 源码或使用匹配的已安装 SDK。
 
 `--aria-root /path/to/Aria`（CMake 的 `ARIA_DIR`，Tutorial 为 `ARIA_ROOT`）提供可编辑源码；其内容仍被哈希并编译进共享 SDK，不再嵌入应用子目录。Qt、NDK 和 Apple SDK 由用户安装，实际工具链与 Qt 内容进入产物身份。更新版本使用 `scripts/ci/update_dependencies.py`，审查并提交锁文件。
 
@@ -160,7 +166,7 @@ python scripts/build.py clean       # 清理全部构建产物
 python scripts/build.py --test
 ```
 
-测试包括依赖拉取安全回归，以及使用本地 HTTP 服务验证普通响应和 SSE 流式响应的 `llm_client_smoke`；无需配置 LLM API 密钥。
+测试包括验证模块惰性创建、缓存、注册撤销和真实 manifest 的 `module_smoke`，依赖拉取安全回归，使用本地 HTTP 服务验证普通响应和 SSE 流式响应的 `llm_client_smoke`，以及验证目录资源、语言切换、独立上下文和本地化会话标题的 `localization_smoke`。`qt_shell_smoke` 离屏构造主窗口与全部设置页，检查中英文往返切换、创建会话和销毁；它显式注入临时 JSON、INI 与会话目录，不读取或修改真实用户数据，也不发送模型请求。无需配置 LLM API 密钥。
 
 ### 配置 & 运行
 

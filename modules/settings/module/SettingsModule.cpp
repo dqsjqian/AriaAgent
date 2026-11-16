@@ -8,7 +8,7 @@ namespace settings {
 
 std::shared_ptr<aria::binding::ViewModel>
 SettingsModule::create_view_model(module_api::ModuleContext& ctx) {
-    return std::make_shared<SettingsVm>(ctx.service<agent::SettingsStore>());
+    return std::make_shared<SettingsVm>(ctx.service<agent::SettingsStore>(), ctx.localization());
 }
 
 std::shared_ptr<module_api::IModule> make_settings_module() {

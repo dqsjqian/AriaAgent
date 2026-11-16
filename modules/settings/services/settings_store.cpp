@@ -25,10 +25,12 @@ void set_env(const char* name, const std::string& value) {
 
 namespace agent {
 
-SettingsStore::SettingsStore() = default;
+SettingsStore::SettingsStore(std::string storage_path)
+    : storage_path_(std::move(storage_path)) {}
 
 std::string SettingsStore::path() const {
-    return SessionStore::base_dir() + "/../settings.json";
+    return storage_path_.empty() ? SessionStore::base_dir() + "/../settings.json"
+                                 : storage_path_;
 }
 
 void SettingsStore::load(SettingsValues& out) const {

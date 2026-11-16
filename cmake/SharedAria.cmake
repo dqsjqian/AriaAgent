@@ -22,7 +22,7 @@ if(NOT ARIA_SDK_SOURCE AND DEFINED ENV{ARIA_SDK_SOURCE})
     set(ARIA_SDK_SOURCE "$ENV{ARIA_SDK_SOURCE}")
 endif()
 if(NOT ARIA_SDK_PREFIX)
-    foreach(_feature QT HTTP TLS JNI APPKIT UIKIT SHARED)
+    foreach(_feature QT HTTP TLS JNI APPKIT UIKIT SHARED I18N APP)
         if(NOT DEFINED ARIA_SDK_${_feature})
             set(ARIA_SDK_${_feature} OFF)
         endif()
@@ -34,7 +34,8 @@ if(NOT ARIA_SDK_PREFIX)
     forgerecipes_sdk(FILE "${ARIA_DEPENDENCIES_FILE}" ${_source_args}
         QT "${ARIA_SDK_QT}" HTTP "${ARIA_SDK_HTTP}" TLS "${ARIA_SDK_TLS}"
         JNI "${ARIA_SDK_JNI}" APPKIT "${ARIA_SDK_APPKIT}" UIKIT "${ARIA_SDK_UIKIT}"
-        SHARED "${ARIA_SDK_SHARED}" PREFIXES ARIA_SDK_PREFIXES)
+        SHARED "${ARIA_SDK_SHARED}" I18N "${ARIA_SDK_I18N}"
+        APP "${ARIA_SDK_APP}" PREFIXES ARIA_SDK_PREFIXES)
     # The recipe package layout is owned by the recipe layer, not duplicated here.
     forgerecipes_locate_package(PREFIXES ${ARIA_SDK_PREFIXES} PACKAGE aria
         OUT _aria_config_dir PREFIX_OUT ARIA_SDK_PREFIX)
@@ -43,7 +44,7 @@ if(NOT ARIA_SDK_PREFIX)
     endif()
 endif()
 set(_aria_components core async runtime binding)
-foreach(_feature QT HTTP JNI APPKIT UIKIT)
+foreach(_feature QT HTTP JNI APPKIT UIKIT I18N APP)
     if(ARIA_SDK_${_feature})
         string(TOLOWER "${_feature}" _component)
         if(_feature STREQUAL "QT")
