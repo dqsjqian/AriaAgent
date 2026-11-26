@@ -35,7 +35,10 @@ Environment:
 Build steps:
     1. Verify pinned Aria via scripts/ci/fetch_aria.py
     2. Detect Qt6 (or fail with a clear error)
-    3. CMake configure (Ninja if available) with CMAKE_PREFIX_PATH=<qt>
+    3. CMake configure (Ninja if available) with CMAKE_PREFIX_PATH=<qt>,
+       plus cmake/toolchain-qt-prefix.cmake so the nested Aria SDK
+       transaction (whose CMAKE_PREFIX_PATH is ForgeDeps-controlled) can
+       also see Qt's libGL.so
     4. cmake --build
     5. Windows only: deploy DLLs via windeployqt + objdump recursive copy,
        so the exe runs by double-click
@@ -280,6 +283,13 @@ def main(argv=None) -> int:
     if qt_prefix is None:
         qt_prefix = find_qt_prefix()
     print(f"[build] Qt6: {qt_prefix or 'CMake system search'}")
+    if qt_prefix is not None:
+        # The nested Aria SDK transaction gets a protocol-controlled
+        # CMAKE_PREFIX_PATH from ForgeDeps (<json>;<mira>;<openssl>) and its
+        # FindOpenGL cannot see Qt's libGL.so. ForgeDeps replays
+        # CMAKE_TOOLCHAIN_FILE into the nested configure, so pass this shim
+        # (which appends the Qt prefix from the env var below) through it.
+        os.environ["ARIAAGENT_QT_PREFIX"] = str(qt_prefix)
 
     # Windows: pick the toolchain from the environment. An active MSVC
     # environment (developer prompt / msvc-dev-cmd, cl on PATH) must keep
@@ -312,6 +322,7 @@ def main(argv=None) -> int:
     ]
     if qt_prefix is not None:
         configure_cmd.append(f"-DCMAKE_PREFIX_PATH={qt_prefix}")
+        configure_cmd.append(f"-DCMAKE_TOOLCHAIN_FILE={ROOT / 'cmake' / 'toolchain-qt-prefix.cmake'}")
     print(f"[build] Configuring {build_type}")
     commands.append(configure_cmd)
 
